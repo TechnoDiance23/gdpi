@@ -79,7 +79,11 @@ Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.
 3. Bir site GDPI açıkken bozuluyorsa, adını **Asla dokunma** listesine ekle.
 
 ### Bilmen gerekenler
-- GoodbyeDPI veya benzeri bir araçla **aynı anda çalıştırma**, ikisi de aynı sürücüyü (WinDivert) kullanır.
+- **GoodbyeDPI'ı tamamen kapat** (servisi varsa `service_remove.cmd`). İkisi aynı anda çalışırsa birbirini bozar,
+  bankalar ve devlet siteleri açılmaz.
+- Windows Defender, WinDivert'i (GoodbyeDPI'daki gibi) "istenmeyebilecek uygulama" diye işaretleyebilir. Sürücü
+  WinDivert'in resmi, imzalı sürücüsüdür. Engellenirse Defender'da GDPI klasörüne izin vermen gerekir.
+- Sorun olursa `%APPDATA%\GDPI\cikti.log` ve `GDPI.exe --selftest` (sonuç: `selftest.txt`) yardımcı olur.
 - Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında durur. GDPI bu dosyayı açarken her değeri kontrol eder,
   geçersiz bir değer (bilinmeyen DNS sunucusu, bozuk alan adı vb.) görürse güvenli varsayılana döner.
 - **Windows ile başlat** açılınca GDPI kendi klasörünü `C:\Program Files\GDPI\` içine kopyalar ve oradan başlar.
@@ -97,7 +101,7 @@ Operatörün DPI'ı alan adını bütün halinde göremez, sunucu ise parçalar�
 ## Teşekkürler ve lisans
 
 - Fikir: [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS) ve [zapret](https://github.com/bol-van/zapret). GDPI onların kodunu içermez, aynı yaklaşımı Python ile sıfırdan uygular.
-- Paket yakalama: [WinDivert](https://reqrypt.org/windivert.html) (LGPLv3) + [pydivert](https://github.com/ffalcinelli/pydivert) (LGPLv3).
+- Paket yakalama: [WinDivert 2.2](https://reqrypt.org/windivert.html) (LGPLv3), GoodbyeDPI ile aynı sürücü sürümü.
 - Arayüz: [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT), [pystray](https://github.com/moses-palmer/pystray) (LGPLv3), Pillow.
 
 GDPI'ın kendi kodu **MIT** lisanslıdır, bkz. [LICENSE](LICENSE). Üçüncü parti lisanslar için [THIRD_PARTY.md](THIRD_PARTY.md).

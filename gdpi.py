@@ -1,6 +1,6 @@
 """
 GDPI - Görüşürüz Derin Paket İnceleme
-Kişisel, arayüzlü DPI aşma aracı (WinDivert / pydivert).
+Kişisel, arayüzlü DPI aşma aracı (WinDivert 2.2).
 
 GoodbyeDPI'dan farkı:
   * Siteye göre çalışır: bankalar, e-Devlet, Resmî Gazete, Grok gibi siteler "dokunma" listesindedir,
@@ -24,11 +24,13 @@ import threading
 import time
 
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
-VERSION = "1.0.3"
+VERSION = "1.1.0"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
 DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG = os.path.join(DATA_DIR, "ayarlar.json")
+if sys.stderr is None or sys.stdout is None:    # pencereli exe: konsol yok, çıktıyı dosyaya yönlendir
+    sys.stdout = sys.stderr = open(os.path.join(DATA_DIR, "cikti.log"), "w", encoding="utf-8", buffering=1)
 
 DEFAULTS = {
     "mode": "hepsi",            # "hepsi": dokunma listesi hariç hepsi | "liste": sadece hedef listesi
@@ -96,15 +98,120 @@ def domain_in(host: str, domains) -> bool:
     return any(host == d or host.endswith("." + d) for d in domains)
 
 
+# ----------------------------------------------------------------- WinDivert 2.2
+WD_ERRORS = {
+    2: "WinDivert dosyaları eksik (WinDivert.dll / WinDivert64.sys).",
+    5: "Yönetici izni yok. GDPI'ı yönetici olarak açın.",
+    87: "Filtre geçersiz (iç hata).",
+    577: "Sürücü imzası doğrulanamadı. Windows sürücüyü engelledi.",
+    1058: "WinDivert sürücü servisi devre dışı.",
+    1275: "Windows sürücüyü engelledi (Güvenlik/Bellek bütünlüğü ya da antivirüs).",
+    1753: "Windows Base Filtering Engine (BFE) servisi kapalı.",
+}
+
+
+def windivert_dir():
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "windivert")
+
+
+class WinDivert:
+    """WinDivert 2.2 için küçük ctypes sarmalayıcı (GoodbyeDPI ile aynı sürücü sürümü)."""
+    ADDR_SIZE = 80                               # sizeof(WINDIVERT_ADDRESS)
+
+    def __init__(self, flt):
+        from ctypes import wintypes
+        dll = ctypes.WinDLL(os.path.join(windivert_dir(), "WinDivert.dll"), use_last_error=True)
+        dll.WinDivertOpen.restype = wintypes.HANDLE
+        dll.WinDivertOpen.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int16, ctypes.c_uint64]
+        for name in ("WinDivertRecv", "WinDivertSend"):
+            getattr(dll, name).restype = wintypes.BOOL
+            getattr(dll, name).argtypes = [wintypes.HANDLE, ctypes.c_void_p, ctypes.c_uint,
+                                           ctypes.POINTER(ctypes.c_uint), ctypes.c_void_p]
+        dll.WinDivertShutdown.argtypes = [wintypes.HANDLE, ctypes.c_int]
+        dll.WinDivertClose.argtypes = [wintypes.HANDLE]
+        dll.WinDivertHelperCalcChecksums.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p,
+                                                     ctypes.c_uint64]
+        self.dll = dll
+        h = dll.WinDivertOpen(flt.encode(), 0, 0, 0)          # NETWORK katmanı, öncelik 0
+        if not h or h == wintypes.HANDLE(-1).value:
+            err = ctypes.get_last_error()
+            raise OSError(err, WD_ERRORS.get(err, f"WinDivert açılamadı (Windows hata kodu {err})."))
+        self.h = h
+        self.buf = ctypes.create_string_buffer(65535)
+
+    def recv(self):
+        """(paket, adres) döndürür; tutamaç kapandıysa None."""
+        addr = ctypes.create_string_buffer(self.ADDR_SIZE)
+        n = ctypes.c_uint(0)
+        if not self.dll.WinDivertRecv(self.h, self.buf, len(self.buf), ctypes.byref(n), addr):
+            return None
+        return bytearray(self.buf.raw[:n.value]), addr
+
+    @staticmethod
+    def outbound(addr):
+        return bool(int.from_bytes(addr.raw[8:12], "little") >> 17 & 1)
+
+    def checksums(self, pkt: bytearray, addr):
+        cbuf = (ctypes.c_char * len(pkt)).from_buffer(pkt)
+        self.dll.WinDivertHelperCalcChecksums(cbuf, len(pkt), addr, 0)
+
+    def send(self, pkt: bytearray, addr, fix_checksums=True):
+        if fix_checksums:
+            self.checksums(pkt, addr)
+        cbuf = (ctypes.c_char * len(pkt)).from_buffer(pkt)
+        self.dll.WinDivertSend(self.h, cbuf, len(pkt), None, addr)
+
+    def close(self):
+        self.dll.WinDivertShutdown(self.h, 3)                  # bekleyen recv'i uyandır
+        self.dll.WinDivertClose(self.h)
+
+
+class Pkt:
+    """IPv4/IPv6 + TCP/UDP başlıklarını doğrudan baytlar üzerinde okuyup yazar."""
+
+    def __init__(self, raw: bytearray):
+        self.raw = raw
+        self.v6 = raw[0] >> 4 == 6
+        self.l4 = 40 if self.v6 else (raw[0] & 15) * 4
+        self.proto = raw[6] if self.v6 else raw[9]
+        self.tcp = self.proto == 6
+        self.udp = self.proto == 17
+        p = self.l4
+        self.sport = int.from_bytes(raw[p:p + 2], "big")
+        self.dport = int.from_bytes(raw[p + 2:p + 4], "big")
+        self.poff = p + ((raw[p + 12] >> 4) * 4 if self.tcp else 8)
+
+    @property
+    def payload(self):
+        return bytes(self.raw[self.poff:])
+
+    @property
+    def seq(self):
+        return int.from_bytes(self.raw[self.l4 + 4:self.l4 + 8], "big")
+
+    def segment(self, data: bytes, seq: int, ttl=None) -> bytearray:
+        """Aynı başlıklarla, yeni yük ve sıra numarasıyla bir TCP paketi üretir."""
+        r = bytearray(self.raw[:self.poff]) + data
+        if self.v6:
+            r[4:6] = (len(r) - 40).to_bytes(2, "big")
+        else:
+            r[2:4] = len(r).to_bytes(2, "big")
+        r[self.l4 + 4:self.l4 + 8] = (seq & 0xFFFFFFFF).to_bytes(4, "big")
+        if ttl is not None:
+            r[7 if self.v6 else 8] = ttl
+        return r
+
+
 # ----------------------------------------------------------------- motor
 class Engine:
     def __init__(self, cfg, log):
         self.cfg = cfg
         self.log = log
-        self.handle = None
+        self.wd = None
         self.thread = None
         self.seen = set()
-        self.dns_map = {}                        # yerel port -> asıl DNS sunucusu
+        self.dns_map = {}                        # yerel port -> asıl DNS sunucusu (4 bayt)
         self.n_split = 0                         # bölünen bağlantı
         self.n_skip = 0                          # dokunulmayan (listeden) bağlantı
 
@@ -121,69 +228,65 @@ class Engine:
         if self.cfg["block_quic"]:
             f += " or (outbound and !loopback and udp.DstPort == 443)"
         if self.cfg["dns_redirect"]:
-            f += (f" or (outbound and udp.DstPort == 53)"
-                  f" or (inbound and udp.SrcPort == {int(self.cfg['dns_port'])})")
+            f += (f" or (outbound and ip and udp.DstPort == 53)"
+                  f" or (inbound and ip and udp.SrcPort == {int(self.cfg['dns_port'])}"
+                  f" and ip.SrcAddr == {self.cfg['dns_addr']})")
         return f
 
     def start(self):
-        import pydivert
-        self.pydivert = pydivert
-        self.handle = pydivert.WinDivert(self.filter_str())
-        self.handle.open()
+        self.wd = WinDivert(self.filter_str())
         self.thread = threading.Thread(target=self.loop, daemon=True)
         self.thread.start()
 
     def stop(self):
-        h, self.handle = self.handle, None
-        if h:
+        wd, self.wd = self.wd, None
+        if wd:
             try:
-                h.close()
+                wd.close()
             except Exception:
                 pass
 
     def loop(self):
-        w = self.handle
-        while self.handle is w:
-            try:
-                pkt = w.recv()
-            except Exception:
+        wd = self.wd
+        while self.wd is wd:
+            got = wd.recv()
+            if got is None:
                 break                            # tutamaç kapatıldı
+            raw, addr = got
             try:
-                if pkt.udp:
-                    if self.handle_udp(w, pkt):
+                p = Pkt(raw)
+                if p.udp:
+                    if self.handle_udp(wd, p, addr):
                         continue
-                elif self.handle_tcp(w, pkt):
+                elif p.tcp and self.handle_tcp(wd, p, addr):
                     continue
             except Exception as e:
                 self.log(f"hata: {e}")
-            try:
-                w.send(pkt)
-            except Exception:
-                break
+            wd.send(raw, addr, fix_checksums=False)
 
-    # --- UDP: QUIC engeli + DNS yönlendirme
-    def handle_udp(self, w, pkt):
-        if pkt.dst_port == 443 and pkt.is_outbound:
+    # --- UDP: QUIC engeli + DNS yönlendirme (yalnız IPv4)
+    def handle_udp(self, wd, p, addr):
+        out = wd.outbound(addr)
+        if out and p.dport == 443:
             return True                          # QUIC düşür -> tarayıcı TCP'ye döner
-        if pkt.is_outbound and pkt.dst_port == 53:
-            self.dns_map[pkt.src_port] = pkt.dst_addr
-            pkt.dst_addr = self.cfg["dns_addr"]
-            pkt.dst_port = int(self.cfg["dns_port"])
-        elif pkt.is_inbound and pkt.src_addr == self.cfg["dns_addr"]:
-            orig = self.dns_map.pop(pkt.dst_port, None)
+        r = p.raw
+        dns_ip = bytes(int(x) for x in self.cfg["dns_addr"].split("."))
+        if out and p.dport == 53 and not p.v6:
+            self.dns_map[p.sport] = bytes(r[16:20])
+            r[16:20] = dns_ip
+            r[p.l4 + 2:p.l4 + 4] = int(self.cfg["dns_port"]).to_bytes(2, "big")
+        elif not out and not p.v6 and bytes(r[12:16]) == dns_ip:
+            orig = self.dns_map.pop(p.dport, None)
             if orig:
-                pkt.src_addr = orig
-                pkt.src_port = 53
-        w.send(pkt, recalculate_checksum=True)
+                r[12:16] = orig
+                r[p.l4:p.l4 + 2] = (53).to_bytes(2, "big")
+        wd.send(r, addr)
         return True
 
     # --- TCP: SNI / Host bölme
-    def handle_tcp(self, w, pkt):
-        payload = bytes(pkt.payload)
-        if pkt.dst_port == 443:
-            loc = find_sni(payload)
-        else:
-            loc = find_http_host(payload)
+    def handle_tcp(self, wd, p, addr):
+        payload = p.payload
+        loc = find_sni(payload) if p.dport == 443 else find_http_host(payload)
         if not loc:
             return False
         start, ln = loc
@@ -196,40 +299,32 @@ class Engine:
             self.seen.add(host)
             self.log(f"→ {host}")
 
-        if pkt.dst_port == 80:
+        if p.dport == 80:
             hpos = payload.find(b"\r\nHost:")
             payload = payload[:hpos] + b"\r\nhoSt:" + payload[hpos + 7:]
             cuts = [hpos + 4, start + ln // 2]
         else:
             cuts = [2, start + ln // 2]          # kayıt başlığı + alan adının ortası
-        self.send_split(w, pkt, payload, cuts)
+        self.send_split(wd, p, addr, payload, cuts)
         return True
 
-    def segment(self, w, pkt, data, seq_off, fake=False):
-        p = self.pydivert.Packet(bytes(pkt.raw), pkt.interface, pkt.direction)
-        p.payload = data
-        p.tcp.seq_num = (pkt.tcp.seq_num + seq_off) & 0xFFFFFFFF
-        if fake and self.cfg["fake"] == "ttl":
-            if p.ipv4:
-                p.ipv4.ttl = int(self.cfg["ttl"])
-            else:
-                p.ipv6.hop_limit = int(self.cfg["ttl"])
-        p.recalculate_checksums()
-        if fake and self.cfg["fake"] == "checksum":
-            p.tcp.cksum = p.tcp.cksum ^ 0xFFFF   # sunucu kesin reddeder, DPI çoğu zaman bakmaz
-        w.send(p, recalculate_checksum=False)
-
-    def send_split(self, w, pkt, data, cuts):
+    def send_split(self, wd, p, addr, data, cuts):
         cuts = sorted(c for c in set(cuts) if 0 < c < len(data))
         b = [0] + cuts + [len(data)]
         parts = [(b[k], data[b[k]:b[k + 1]]) for k in range(len(b) - 1)]
-        if self.cfg["fake"] != "kapali":
+        fake = self.cfg["fake"]
+        if fake != "kapali":
             junk = bytes(random.getrandbits(8) for _ in range(len(parts[0][1])))
-            self.segment(w, pkt, junk, 0, fake=True)
+            f = p.segment(junk, p.seq, ttl=int(self.cfg["ttl"]) if fake == "ttl" else None)
+            wd.checksums(f, addr)
+            if fake == "checksum":
+                c = p.l4 + 16                    # TCP checksum alanı: bozuk -> sunucu kesin reddeder
+                f[c:c + 2] = (int.from_bytes(f[c:c + 2], "big") ^ 0xFFFF).to_bytes(2, "big")
+            wd.send(f, addr, fix_checksums=False)
         if self.cfg["reverse"]:
             parts.reverse()
         for off, chunk in parts:
-            self.segment(w, pkt, chunk, off)
+            wd.send(p.segment(chunk, p.seq + off), addr)
 
 
 # ----------------------------------------------------------------- ayarlar
@@ -820,7 +915,9 @@ class App(ctk.CTk):
 
     # ---------- mantık
     def log(self, msg):
-        self.logq.put(time.strftime("%H:%M:%S  ") + msg)
+        line = time.strftime("%H:%M:%S  ") + msg
+        self.logq.put(line)
+        print(line)                              # exe'de %APPDATA%\GDPI\cikti.log dosyasına gider
 
     def drain_log(self):
         while not self.logq.empty():
@@ -851,14 +948,15 @@ class App(ctk.CTk):
         try:
             self.engine = Engine(self.cfg, self.log)
             self.engine.start()
-        except ImportError:
-            self.engine = None
-            self.log("pydivert yok: pip install pydivert")
-            return
         except Exception as e:
             self.engine = None
-            self.log(f"Başlatılamadı: {e}")
+            msg = e.strerror if isinstance(e, OSError) and e.strerror else str(e)
+            self.log(f"Başlatılamadı: {msg}")
+            self.show_page("home")                  # hatayı Kayıt'ta saklama, ana ekranda göster
+            self.h_title.configure(text="Başlatılamadı", text_color=C["red"])
+            self.h_sub.configure(text=msg, text_color=C["red"])
             return
+        self.h_sub.configure(text_color=C["mute"])
         self.started_at = time.time()
         self.log(f"Başladı ({self.cfg['mode']}, sahte: {self.cfg['fake']}).")
         self.update_ui_state()
@@ -879,9 +977,47 @@ def is_admin():
         return False
 
 
+def selftest():
+    """GDPI.exe --selftest: motoru gerçekten başlatır, siteleri dener, sonucu
+    %APPDATA%\\GDPI\\selftest.txt dosyasına yazar ve çıkar."""
+    out = []
+    say = lambda s: out.append(s)
+    hosts = ["discord.com", "cdn.discordapp.com", "www.isbank.com.tr", "www.resmigazete.gov.tr",
+             "grok.com", "x.com", "www.google.com"]
+    say(f"GDPI {VERSION} öz test  {time.strftime('%Y-%m-%d %H:%M:%S')}  yönetici={is_admin()}")
+    say("-- GDPI kapalı:")
+    for h in hosts:
+        say(f"   {h:28} {site_check(h)}")
+    cfg = load_cfg()
+    e = Engine(cfg, lambda m: say("   log " + m))
+    try:
+        e.start()
+        say("-- GDPI açık (motor başladı):")
+        for h in hosts:
+            say(f"   {h:28} {site_check(h)}")
+        say(f"-- bölünen={e.n_split}  dokunulmayan={e.n_skip}")
+    except Exception as ex:
+        say(f"-- MOTOR BAŞLAMADI: {ex}")
+    finally:
+        e.stop()
+    with open(os.path.join(DATA_DIR, "selftest.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+
+
 if __name__ == "__main__":
     if not FROZEN and not is_admin() and "--no-elevate" not in sys.argv:   # exe zaten yönetici ister
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable,
                                             f'"{os.path.abspath(__file__)}" --no-elevate', None, 1)
         sys.exit()
-    App(tray_start="--tray" in sys.argv).mainloop()
+    try:
+        if "--selftest" in sys.argv:
+            selftest()
+            sys.exit()
+        App(tray_start="--tray" in sys.argv).mainloop()
+    except SystemExit:
+        raise
+    except BaseException:                       # pencereli exe hatayı gösteremez: dosyaya yaz
+        import traceback
+        with open(os.path.join(DATA_DIR, "hata.txt"), "w", encoding="utf-8") as f:
+            f.write(traceback.format_exc())
+        raise
