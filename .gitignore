@@ -1,0 +1,13 @@
+build/
+dist/
+*.spec
+*.log
+__pycache__/
+*.pyc
+ayarlar.json
+gdpi_ayarlar.json
+.env
+*.pem
+*.key
+.omc/
+.claude/

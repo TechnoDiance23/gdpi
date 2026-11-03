@@ -1,0 +1,37 @@
+# v* etiketi gönderilince GDPI.exe'yi derler ve otomatik olarak GitHub Release'e yükler.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Derle
+        run: ./build.ps1
+        shell: pwsh
+      - name: SHA256
+        run: (Get-FileHash dist/GDPI.exe -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/GDPI.exe.sha256
+        shell: pwsh
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: GDPI ${{ github.ref_name }}
+          files: |
+            dist/GDPI.exe
+            dist/GDPI.exe.sha256
+          body: |
+            **GDPI.exe**'yi indir, çift tıkla, yönetici iznine "Evet" de, büyük düğmeye bas. Bu kadar. 👋
+
+            SmartScreen uyarı verirse: **Ek bilgi → Yine de çalıştır** (exe imzasız, kaynak kod depoda).
+            Doğrulamak istersen SHA256 değeri `GDPI.exe.sha256` dosyasında.
