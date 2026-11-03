@@ -80,7 +80,10 @@ Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.
 
 ### Bilmen gerekenler
 - GoodbyeDPI veya benzeri bir araçla **aynı anda çalıştırma**, ikisi de aynı sürücüyü (WinDivert) kullanır.
-- Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında durur.
+- Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında durur. GDPI bu dosyayı açarken her değeri kontrol eder,
+  geçersiz bir değer (bilinmeyen DNS sunucusu, bozuk alan adı vb.) görürse güvenli varsayılana döner.
+- **Windows ile başlat** açılınca GDPI kendini `C:\Program Files\GDPI\` klasörüne kopyalar ve oradan başlar.
+  Bu klasöre sadece yöneticiler yazabilir, böylece başka bir program GDPI'ın yerine geçip yönetici yetkisi alamaz.
 - GDPI bir VPN değildir. IP adresini gizlemez, sadece operatörün paket incelemesini atlatır.
 - Hiçbir veri toplamaz, hiçbir yere bağlanmaz. Sadece senin bilgisayarındaki paketleri yeniden düzenler.
 

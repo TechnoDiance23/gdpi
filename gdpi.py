@@ -24,7 +24,7 @@ import threading
 import time
 
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
 DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -233,14 +233,35 @@ class Engine:
 
 
 # ----------------------------------------------------------------- ayarlar
-def load_cfg():
+DNS_SERVERS = {"77.88.8.8", "77.88.8.1", "1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9"}
+DOMAIN_RE = __import__("re").compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)*$")
+
+
+def sanitize_cfg(raw):
+    """Ayar dosyası yöneticisiz yazılabilir; yönetici olarak çalışan motor ona körü körüne güvenmesin."""
     cfg = json.loads(json.dumps(DEFAULTS))
+    if not isinstance(raw, dict):
+        return cfg
+    pick = lambda k, ok: raw[k] if k in raw and ok(raw[k]) else cfg[k]
+    cfg["mode"] = pick("mode", lambda v: v in ("hepsi", "liste"))
+    cfg["fake"] = pick("fake", lambda v: v in ("checksum", "ttl", "kapali"))
+    cfg["ttl"] = pick("ttl", lambda v: isinstance(v, int) and 1 <= v <= 32)
+    for k in ("reverse", "block_quic", "dns_redirect"):
+        cfg[k] = pick(k, lambda v: isinstance(v, bool))
+    cfg["dns_addr"] = pick("dns_addr", lambda v: v in DNS_SERVERS)
+    cfg["dns_port"] = pick("dns_port", lambda v: isinstance(v, int) and v in (53, 1253, 5353))
+    for k in ("targets", "bypass"):
+        cfg[k] = pick(k, lambda v: isinstance(v, list) and all(
+            isinstance(d, str) and len(d) < 254 and DOMAIN_RE.match(d) for d in v))
+    return cfg
+
+
+def load_cfg():
     try:
         with open(CONFIG, encoding="utf-8") as f:
-            cfg.update(json.load(f))
+            return sanitize_cfg(json.load(f))
     except (OSError, ValueError):
-        pass
-    return cfg
+        return sanitize_cfg({})
 
 
 def save_cfg(cfg):
@@ -285,17 +306,27 @@ def autostart_enabled():
 
 
 def set_autostart(on: bool):
-    """Oturum açılınca yönetici olarak, UAC sormadan, tepside ve açık başlar."""
-    if on:
-        if FROZEN:
-            cmd = f'"{sys.executable}" --tray'
-        else:
-            exe = sys.executable.replace("python.exe", "pythonw.exe")
-            cmd = f'"{exe}" "{os.path.abspath(__file__)}" --no-elevate --tray'
-        args = ["schtasks", "/create", "/f", "/tn", TASK, "/sc", "onlogon", "/rl", "highest", "/tr", cmd]
-    else:
-        args = ["schtasks", "/delete", "/f", "/tn", TASK]
-    subprocess.run(args, capture_output=True, creationflags=0x08000000)
+    """Oturum açılınca yönetici olarak, UAC sormadan, tepside ve açık başlar.
+    Görev yalnızca Program Files'a kopyalanan exe'yi çalıştırır: oraya sadece yöneticiler yazabilir,
+    böylece kullanıcı klasöründeki dosyayı değiştiren biri yönetici yetkisi kazanamaz.
+    Başarılıysa None, değilse açıklama döndürür."""
+    if not on:
+        subprocess.run(["schtasks", "/delete", "/f", "/tn", TASK], capture_output=True, creationflags=0x08000000)
+        return None
+    if not FROZEN:
+        return "Windows ile başlatma sadece GDPI.exe sürümünde var (Releases sayfası)."
+    import shutil
+    dest_dir = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "GDPI")
+    dest = os.path.join(dest_dir, "GDPI.exe")
+    try:
+        os.makedirs(dest_dir, exist_ok=True)
+        if os.path.abspath(sys.executable).lower() != dest.lower():
+            shutil.copy2(sys.executable, dest)
+    except OSError as e:
+        return f"Program Files'a kopyalanamadı: {e}"
+    r = subprocess.run(["schtasks", "/create", "/f", "/tn", TASK, "/sc", "onlogon", "/rl", "highest",
+                        "/tr", f'"{dest}" --tray'], capture_output=True, creationflags=0x08000000)
+    return None if r.returncode == 0 else "Zamanlanmış görev oluşturulamadı."
 
 
 PRESETS = {
@@ -665,7 +696,7 @@ class App(ctk.CTk):
             ("QUIC'i engelle", "Tarayıcıyı bölünebilen TLS'e zorlar", sw(self.v_quic)),
             ("DNS yönlendir", "Operatör DNS'ini aşar (Yandex 77.88.8.8:1253)", sw(self.v_dns)),
             ("Windows ile başlat", "Açılışta tepside ve açık başlar, onay sormaz",
-             sw(self.v_auto, lambda: set_autostart(self.v_auto.get()))),
+             sw(self.v_auto, self.toggle_autostart)),
         ]
         for i, (title, sub, make) in enumerate(rows):
             c = self.card(box)
@@ -693,6 +724,14 @@ class App(ctk.CTk):
                                     corner_radius=12, font=("Consolas", 12), text_color="#86efac")
         self.t_log.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 20))
         self.t_log.configure(state="disabled")
+
+    def toggle_autostart(self):
+        err = set_autostart(self.v_auto.get())
+        if err:
+            self.v_auto.set(False)
+            self.log(err)
+        elif self.v_auto.get():
+            self.log("Windows ile başlatma açık (Program Files\\GDPI\\GDPI.exe).")
 
     def copy_log(self):
         self.clipboard_clear()
