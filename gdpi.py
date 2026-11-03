@@ -24,7 +24,7 @@ import threading
 import time
 
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
 DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -316,12 +316,16 @@ def set_autostart(on: bool):
     if not FROZEN:
         return "Windows ile başlatma sadece GDPI.exe sürümünde var (Releases sayfası)."
     import shutil
-    dest_dir = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "GDPI")
+    import winreg
+    # Ortam değişkeni kullanıcı tarafından değiştirilebilir; yolu HKLM'den (yalnızca yöneticiler yazar) oku
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion") as k:
+        pf = winreg.QueryValueEx(k, "ProgramFilesDir")[0]
+    dest_dir = os.path.join(pf, "GDPI")
     dest = os.path.join(dest_dir, "GDPI.exe")
+    src_dir = os.path.dirname(os.path.abspath(sys.executable))   # onedir: exe + _internal klasörü
     try:
-        os.makedirs(dest_dir, exist_ok=True)
-        if os.path.abspath(sys.executable).lower() != dest.lower():
-            shutil.copy2(sys.executable, dest)
+        if src_dir.lower() != dest_dir.lower():
+            shutil.copytree(src_dir, dest_dir, dirs_exist_ok=True)
     except OSError as e:
         return f"Program Files'a kopyalanamadı: {e}"
     r = subprocess.run(["schtasks", "/create", "/f", "/tn", TASK, "/sc", "onlogon", "/rl", "highest",

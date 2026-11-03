@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>⬇️ GDPI.exe'yi indir</b></a>
+  <a href="../../releases/latest"><b>⬇️ GDPI'ı indir</b></a>
 </p>
 
 ---
@@ -33,8 +33,8 @@ GDPI aynı fikri biraz daha nazik uyguluyor:
 ## Kurulum
 
 ### 1) En kolayı: hazır exe
-1. [Releases](../../releases/latest) sayfasından **GDPI.exe**'yi indir.
-2. Çift tıkla, yönetici iznine "Evet" de. (Ağ paketlerini işleyebilmek için gerekiyor.)
+1. [Releases](../../releases/latest) sayfasından **GDPI-windows.zip**'i indir ve bir klasöre çıkar.
+2. İçindeki **GDPI.exe**'ye çift tıkla, yönetici iznine "Evet" de. (Ağ paketlerini işleyebilmek için gerekiyor.)
 3. Ortadaki büyük düğmeye bas. Yeşil olduysa tamamdır. ✅
 
 > Windows SmartScreen "tanınmayan uygulama" diyebilir, çünkü exe imzasız.
@@ -54,7 +54,7 @@ GDPI.bat
 ```
 `GDPI.bat` eksik Python paketlerini kendisi kurar. Python 3.10+ gerekir.
 
-Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\GDPI.exe`
+Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\GDPI\GDPI.exe`
 
 ## Kullanım
 
@@ -82,7 +82,7 @@ Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.
 - GoodbyeDPI veya benzeri bir araçla **aynı anda çalıştırma**, ikisi de aynı sürücüyü (WinDivert) kullanır.
 - Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında durur. GDPI bu dosyayı açarken her değeri kontrol eder,
   geçersiz bir değer (bilinmeyen DNS sunucusu, bozuk alan adı vb.) görürse güvenli varsayılana döner.
-- **Windows ile başlat** açılınca GDPI kendini `C:\Program Files\GDPI\` klasörüne kopyalar ve oradan başlar.
+- **Windows ile başlat** açılınca GDPI kendi klasörünü `C:\Program Files\GDPI\` içine kopyalar ve oradan başlar.
   Bu klasöre sadece yöneticiler yazabilir, böylece başka bir program GDPI'ın yerine geçip yönetici yetkisi alamaz.
 - GDPI bir VPN değildir. IP adresini gizlemez, sadece operatörün paket incelemesini atlatır.
 - Hiçbir veri toplamaz, hiçbir yere bağlanmaz. Sadece senin bilgisayarındaki paketleri yeniden düzenler.
