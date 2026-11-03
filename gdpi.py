@@ -24,7 +24,7 @@ import threading
 import time
 
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
 DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -325,7 +325,13 @@ def set_autostart(on: bool):
     src_dir = os.path.dirname(os.path.abspath(sys.executable))   # onedir: exe + _internal klasörü
     try:
         if src_dir.lower() != dest_dir.lower():
-            shutil.copytree(src_dir, dest_dir, dirs_exist_ok=True)
+            # Sadece GDPI.exe ve _internal kopyalanır; klasördeki başka (araya sokulmuş) dosyalar taşınmaz.
+            # Eski kurulum önce tamamen silinir ki önceden bırakılmış dosya kalmasın.
+            if os.path.isdir(dest_dir):
+                shutil.rmtree(dest_dir)
+            os.makedirs(dest_dir)
+            shutil.copy2(os.path.join(src_dir, "GDPI.exe"), dest)
+            shutil.copytree(os.path.join(src_dir, "_internal"), os.path.join(dest_dir, "_internal"))
     except OSError as e:
         return f"Program Files'a kopyalanamadı: {e}"
     r = subprocess.run(["schtasks", "/create", "/f", "/tn", TASK, "/sc", "onlogon", "/rl", "highest",
