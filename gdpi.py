@@ -1022,17 +1022,17 @@ class App(ctk.CTk):
         sw = lambda var, cmd=None: lambda c: ctk.CTkSwitch(
             c, text="", variable=var, command=cmd, progress_color=C["blue"])
         rows = [
-            ("Çalışma modu", "“Sadece liste” en güvenlisi; “Her site” dokunma listesi hariç hepsine uygular",
+            ("Çalışma modu", "En sorunsuzu “Sadece liste”. “Her site” dokunma listesindekiler dışında her yere uygular",
              seg(self.v_mode, ["Her site", "Sadece liste"])),
-            ("Sahte paket", "Bozuk checksum: yakın sunucuları bozmaz (önerilen)",
+            ("Sahte paket", "Bozuk checksum en güvenlisi, yakındaki sunuculara zarar vermez",
              seg(self.v_fake, ["Bozuk checksum", "Düşük TTL", "Kapalı"])),
-            ("TTL değeri", "Sadece “Düşük TTL” seçiliyken; genelde 3–6",
+            ("TTL değeri", "Sadece Düşük TTL seçiliyken işe yarar. Çoğu zaman 3 ile 6 arası iyi",
              lambda c: ctk.CTkOptionMenu(c, values=[str(i) for i in range(1, 13)], variable=self.v_ttl,
                                          width=80, fg_color=C["card2"], button_color=C["line"])),
-            ("Parçaları ters gönder", "Bazı operatörlerde işe yarar", sw(self.v_rev)),
-            ("QUIC'i engelle", "Tarayıcıyı bölünebilen TLS'e zorlar", sw(self.v_quic)),
-            ("DNS yönlendir", "Operatör DNS'ini aşar (Yandex 77.88.8.8:1253)", sw(self.v_dns)),
-            ("Windows ile başlat", "Açılışta tepside ve açık başlar, onay sormaz",
+            ("Parçaları ters gönder", "Bazı operatörlerde fark yaratıyor, açılmayan site varsa dene", sw(self.v_rev)),
+            ("QUIC'i engelle", "Tarayıcıyı bölünebilen normal bağlantıya geçmeye zorlar", sw(self.v_quic)),
+            ("DNS yönlendir", "Operatörün DNS engelini aşar (Yandex DNS kullanır)", sw(self.v_dns)),
+            ("Windows ile başlat", "Bilgisayar açılınca sessizce başlar, izin sormaz",
              sw(self.v_auto, self.toggle_autostart)),
         ]
         for i, (title, sub, make) in enumerate(rows):

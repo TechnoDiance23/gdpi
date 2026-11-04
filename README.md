@@ -80,13 +80,15 @@ istersen `powershell -ExecutionPolicy Bypass -File build.ps1` yeterli, sonuç `d
 
 ## Nasıl kullanılır?
 
-Ana ekrandaki düğme GDPI'ı açıp kapatıyor. Altında ne kadar süredir açık olduğunu ve kaç bağlantıya karıştığını
-görüyorsun. Hafif, Dengeli ve Agresif diye üç hazır profil var. Bir şey çalışmazsa önce bunları dene.
+Açınca karşına kocaman bir düğme çıkıyor, basınca açılıyor, bir daha basınca kapanıyor. Altında ne kadar süredir
+açık olduğu ve kaç bağlantıya yardım ettiği yazıyor. Hafif, Dengeli ve Agresif diye üç hazır ayar da var. Bir site
+açılmazsa ilk iş bunlarla oynamak.
 
-**Siteler** sayfasında iki liste var: solda engelli siteler, sağda asla dokunulmayacaklar. Her satıra bir alan
-adı yazman yeterli, alt alan adları da otomatik kapsanıyor. **Site Testi**'nde tek bir siteyi ya da listedekilerin
-hepsini deneyebilirsin. **Ayarlar**'dan modu, sahte paket türünü, QUIC ve DNS ayarlarını değiştirebilirsin.
-"Kaydet ve uygula" deyince GDPI'ı kapatıp açmana gerek kalmadan hemen geçerli oluyor.
+**Siteler** sayfası iki listeden ibaret. Solda engelli siteler, sağda GDPI'ın hiç karışmayacağı siteler. Her satıra
+bir site adı yazıyorsun, `discord.com` yazınca `cdn.discord.com` gibi alt adresler de kendiliğinden dahil oluyor.
+**Site Testi**'nde bir siteyi ya da listendekilerin hepsini tek seferde deneyebilirsin. **Ayarlar**'da biraz daha
+ince ayar var. Bir şeyi değiştirip "Kaydet ve uygula"ya bastığında GDPI'ı kapatıp açmana gerek kalmıyor, hemen
+geçerli oluyor.
 
 <p align="center">
   <img src="docs/siteler.png" width="49%"> <img src="docs/test.png" width="49%">
