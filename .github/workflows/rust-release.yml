@@ -1,0 +1,64 @@
+# Rust sürümü (v2.0 beta): rust-v* etiketi gönderilince derler ve Release'e yükler.
+# Python sürümünün v* etiketleriyle karışmasın diye ayrı etiket kullanılır.
+name: Rust Release
+
+on:
+  push:
+    tags: ["rust-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Derle ve paketle
+        shell: pwsh
+        run: |
+          cargo build -p gdpi-app --release --manifest-path rust/Cargo.toml
+          ./fetch_windivert.ps1
+          $d = "dist/GDPI"
+          New-Item -ItemType Directory -Force $d, "$d/licenses" | Out-Null
+          Copy-Item rust/target/release/gdpi.exe "$d/GDPI.exe"
+          Copy-Item -Recurse windivert "$d/windivert"
+          Copy-Item LICENSE, THIRD_PARTY.md $d
+          Copy-Item licenses/* "$d/licenses" -Recurse
+          Compress-Archive -Path $d -DestinationPath dist/GDPI-rust-windows.zip -Force
+          (Get-FileHash dist/GDPI-rust-windows.zip -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/GDPI-rust-windows.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDPI-rust-windows
+          path: dist/GDPI-rust-windows.zip*
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          prerelease: true
+          files: dist/GDPI-rust-windows.zip*
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Derle ve paketle
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q RUST_APT_DEPS
+          cargo build -p gdpi-app --release --manifest-path rust/Cargo.toml
+          mkdir -p dist/GDPI
+          cp rust/target/release/gdpi dist/GDPI/gdpi
+          cp -r LICENSE THIRD_PARTY.md licenses dist/GDPI/
+          tar -C dist -czf dist/GDPI-rust-linux.tar.gz GDPI
+          (cd dist && sha256sum GDPI-rust-linux.tar.gz | cut -d' ' -f1 > GDPI-rust-linux.tar.gz.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDPI-rust-linux
+          path: dist/GDPI-rust-linux.tar.gz*
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          prerelease: true
+          files: dist/GDPI-rust-linux.tar.gz*
