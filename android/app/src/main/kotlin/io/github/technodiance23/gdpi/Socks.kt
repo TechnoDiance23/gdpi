@@ -29,6 +29,8 @@ class Socks(
     private val protect: (Socket) -> Boolean,
     private val protectUdp: (DatagramSocket) -> Boolean,
     private val cfg: Snapshot,
+    /** (protokol, yerel uç, karşı uç) -> bağlantı bizim süreçten mi (hev bizim içimizde çalışıyor). Android 10+. */
+    private val ownPeer: (Int, InetSocketAddress, InetSocketAddress) -> Boolean = { _, _, _ -> true },
 ) {
     class Snapshot(
         val onlyTargets: Boolean, val ttlMode: Boolean, val ttl: Int, val blockQuic: Boolean,
@@ -61,6 +63,7 @@ class Socks(
 
     private fun handle(c: Socket) {
         try {
+            if (!ownPeer(6, c.remoteSocketAddress as InetSocketAddress, c.localSocketAddress as InetSocketAddress)) return c.close()
             c.tcpNoDelay = true
             val inp = DataInputStream(c.getInputStream())
             val out = c.getOutputStream()
@@ -191,6 +194,7 @@ class Socks(
                     local.receive(p)
                     // ilk paketi gönderen istemciye kilitlen, başkasından geleni at
                     val src = InetSocketAddress(p.address, p.port)
+                    if (client.get() == null && !ownPeer(17, src, local.localSocketAddress as InetSocketAddress)) continue
                     if (!client.compareAndSet(null, src) && client.get() != src) continue
                     val len = p.length
                     if (len < 10 || d[2].toInt() != 0) continue          // parçalı paket desteklenmez

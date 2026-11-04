@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
 import android.net.VpnService
+import android.os.Process
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
@@ -49,6 +51,12 @@ class GdpiVpnService : VpnService() {
         val s = Socks(
             protect = { protect(it) },
             protectUdp = { protect(it) },
+            ownPeer = { proto, from, to ->
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) true
+                else try {
+                    getSystemService(ConnectivityManager::class.java).getConnectionOwnerUid(proto, from, to) == Process.myUid()
+                } catch (_: Exception) { false }
+            },
             cfg = Socks.Snapshot(
                 onlyTargets = cfg.onlyTargets, ttlMode = cfg.fake == "ttl", ttl = cfg.ttl,
                 blockQuic = cfg.blockQuic, dnsRedirect = cfg.dnsRedirect,
