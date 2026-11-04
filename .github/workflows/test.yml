@@ -32,3 +32,20 @@ jobs:
           HOME=$RUNNER_TEMP xvfb-run -a timeout 10 python gdpi.py --no-elevate
           code=$?
           test $code -eq 124 || { echo "Arayüz erken kapandı ($code)"; cat $RUNNER_TEMP/.config/GDPI/hata.txt 2>/dev/null; exit 1; }
+
+  windows-selftest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Öz test (WinDivert, gerçek ağ)
+        shell: pwsh
+        run: |
+          python -m pip install -q -r requirements.txt
+          ./fetch_windivert.ps1
+          python gdpi.py --selftest --no-elevate
+          $out = Get-Content "$env:APPDATA\GDPI\selftest.txt" -Raw
+          $out
+          if ($out -match "MOTOR BAŞLAMADI") { throw "Motor başlamadı" }
