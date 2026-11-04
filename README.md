@@ -23,9 +23,11 @@ sitelere (Discord gibi) uygulatabilirsin, geri kalan her şey hiç GDPI yokmuş 
 
 Birkaç küçük şey daha var:
 
-- Sahte paketleri bozuk checksum ile gönderiyor. GoodbyeDPI'daki düşük TTL yöntemi bazen yakındaki Türk
-  sunucularına ulaşıp bağlantıyı bozuyordu, bu yöntemde sunucu sahte paketi hiçbir zaman kabul etmiyor.
-  İstersen TTL yöntemine de geçebilirsin.
+- Engeli aşmak için önce sahte bir istek gönderiyor: gerçek isteğin kopyası, ama site adı zararsız bir adla
+  değiştirilmiş. Bu paket TTL 3 ile gidiyor, yani operatörün DPI'ına ulaşıp onu kandırıyor ama sunucuya hiç
+  varmıyor. Türk Telekom'da Discord, Roblox ve Wattpad bu şekilde açıldı, Trendyol, sahibinden, Hepsiburada
+  gibi siteler de hiç bozulmadı. Ayarlarda bir de "bozuk checksum" yöntemi var ama denediğim hatta işe
+  yaramadı, çünkü DPI sağlama toplamını kontrol ediyor.
 - Paketi rastgele bir yerden değil, alan adının tam ortasından bölüyor.
 - İçinde bir site testi var. Bir site açılmıyorsa sebebinin DNS mi yoksa engel mi olduğunu orada görebilirsin.
 - Kapatınca sağ alttaki simgeye iniyor, istersen Windows açılırken kendiliğinden başlıyor.
@@ -133,7 +135,7 @@ geçerli oluyor.
 ### Bir site açılmıyorsa
 
 Önce Site Testi'nde dene. "DNS engellenmiş" diyorsa Ayarlar'dan DNS yönlendirmeyi aç. Değilse profili Agresif'e
-al ya da sahte paketi Düşük TTL'ye çevirip 3 ile 6 arasında değerler dene. Tersi olursa, yani bir site GDPI
+al ya da Ayarlar'da TTL değerini 4, 5, 6 diye artırarak dene. Tersi olursa, yani bir site GDPI
 açıkken bozuluyorsa, adını "asla dokunma" listesine ekle.
 
 ### Bilmende fayda var
