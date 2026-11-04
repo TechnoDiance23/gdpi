@@ -54,8 +54,12 @@ class GdpiVpnService : VpnService() {
             ownPeer = { proto, from, to ->
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) true
                 else try {
-                    getSystemService(ConnectivityManager::class.java).getConnectionOwnerUid(proto, from, to) == Process.myUid()
-                } catch (_: Exception) { false }
+                    val uid = getSystemService(ConnectivityManager::class.java).getConnectionOwnerUid(proto, from, to)
+                    // UDP'de bağlantısız soketler için Android çoğu zaman sahibi bulamaz (-1).
+                    // Öyle durumda sadece başka bir uygulamaya ait olduğu kesinse reddediyoruz,
+                    // yoksa DNS paketleri düşüyor ve hiçbir site açılmıyor.
+                    uid == Process.myUid() || (proto == 17 && uid == Process.INVALID_UID)
+                } catch (_: Exception) { proto == 17 }
             },
             cfg = Socks.Snapshot(
                 onlyTargets = cfg.onlyTargets, ttlMode = cfg.fake == "ttl", ttl = cfg.ttl,
