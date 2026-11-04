@@ -14,6 +14,8 @@ Bu klasör GDPI ile dağıtılan üçüncü parti bileşenlerin resmî lisans do
 | `six-LICENSE.txt` | six (MIT) | PyPI wheel `.dist-info` |
 | `Python-LICENSE.txt` | Python 3.12 Windows yapısı (PSF-2.0 + gömülü kütüphaneler) | python.org 3.12.10 embeddable paket |
 | `PyInstaller-COPYING.txt` | PyInstaller (GPL-2.0-or-later + bootloader istisnası) | PyPI wheel `.dist-info` |
+| `hev-socks5-tunnel-LICENSE.txt`, `hev-socks5-core-LICENSE.txt`, `hev-task-system-LICENSE.txt`, `hev-yaml-LICENSE.txt` | Android: hev-socks5-tunnel 2.19.3 ve alt modülleri (MIT) | kaynak deposu, etiket `2.19.3` |
+| `lwip-LICENSE.txt` | Android: lwIP (BSD-3-Clause, hev-socks5-tunnel alt modülü) | kaynak deposu, etiket `2.19.3` |
 
 Derleme (`build.ps1`) bu klasörü `dist\GDPI\licenses\static\` altına kopyalar ve ayrıca kurulu sürümlerin kendi lisans
 dosyalarını `tools/collect_licenses.py` ile toplar.

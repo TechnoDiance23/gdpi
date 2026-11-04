@@ -69,6 +69,39 @@ NFQUEUE özelliği kullanılıyor, ayrıca sürücü kurman gerekmiyor. GDPI kap
 Linux'ta "Windows ile başlat" ayarı yok. GNOME'da tepsi simgesi için AppIndicator eklentisi gerekebilir, o
 yoksa pencereyi kapatınca GDPI da kapanıyor.
 
+### Android
+
+[Releases](../../releases/latest) sayfasından **GDPI-android.apk**'yı telefona indir ve aç. Play Store dışından
+geldiği için Android "bilinmeyen kaynak" izni isteyecek, tarayıcına bu izni verip kurulumu bitir. Android 7 ve
+üstünde çalışıyor, root gerekmiyor.
+
+GDPI'ı açıp ortadaki düğmeye bastığında Android bir VPN bağlantısı için izin istiyor, "Tamam" de. Bu gerçek bir VPN
+değil, trafiğin başka bir sunucuya gitmiyor. GDPI telefonda kendi kendine küçük bir VPN açıyor, bağlantıların ilk
+paketini Windows'takine benzer şekilde alan adının ortasından bölüp yolluyor. Açık olduğu sürece bildirim
+çubuğunda duruyor, oradan da kapatabilirsin.
+
+Emülatörde çekilmiş birkaç ekran (kapalı, açık, siteler, ayarlar):
+
+<table>
+  <tr>
+    <td><img src="docs/android/kapali.png" width="200" alt="Kapalı"></td>
+    <td><img src="docs/android/acik.png" width="200" alt="Açık"></td>
+    <td><img src="docs/android/siteler.png" width="200" alt="Siteler"></td>
+    <td><img src="docs/android/ayarlar.png" width="200" alt="Ayarlar"></td>
+  </tr>
+</table>
+
+Telefonda birkaç fark var:
+
+- Root olmadan bozuk sağlama toplamlı sahte paket gönderilemiyor. O yüzden Ayarlar'da iki yöntem var: "Sadece
+  böl" ve "Düşük TTL". Önce sadece bölmeyi dene, işe yaramazsa düşük TTL'ye geç.
+- Banka uygulamaları, e-Devlet, X ve Grok uygulamaları baştan "VPN'e girmeyecek uygulamalar" listesinde. Bunların
+  trafiği GDPI'dan hiç geçmiyor. Listeye kendin de uygulama ekleyebilirsin.
+- Aynı anda tek VPN açık olabiliyor. Başka bir VPN açarsan GDPI kapanır.
+
+APK GitHub'da otomatik derleniyor. Depoda imza anahtarı tanımlı değilse APK Android'in standart debug anahtarıyla
+imzalanıyor, yani şimdilik debug imzalı. Debug imzalı bir sürümden gerçek anahtarla imzalanmış bir sürüme geçerken eskisini kaldırıp yenisini kurman gerekiyor.
+
 ### Kaynaktan
 
 ```
@@ -131,7 +164,8 @@ Operatörler engellemeyi genelde şifreli bağlantının ilk paketine bakarak ya
 sitenin adı (SNI) açık olarak yazıyor. GDPI bu paketi yakalıyor, alan adının tam ortasından ikiye bölüyor ve önüne
 operatörün göreceği ama sunucunun asla kabul etmeyeceği bir sahte paket koyuyor. Operatör site adını bütün halinde
 göremiyor, sunucu ise parçaları normal şekilde birleştiriyor. Windows'ta paketleri yakalamak için
-[WinDivert](https://reqrypt.org/windivert.html), Linux'ta NFQUEUE kullanılıyor.
+[WinDivert](https://reqrypt.org/windivert.html), Linux'ta NFQUEUE kullanılıyor. Android'de paketler yerine
+bağlantıların kendisi bölünüyor, trafiği VPN arayüzünden almak için [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel) (MIT) kullanılıyor.
 
 ## Teşekkürler ve lisans
 
