@@ -20,9 +20,35 @@ jobs:
       - name: Derle
         run: ./build.ps1
         shell: pwsh
-      - name: SHA256
-        run: (Get-FileHash dist/GDPI-windows.zip -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/GDPI-windows.zip.sha256
+      - name: Lisans dosyalarını doğrula
+        run: |
+          foreach ($f in "LICENSE", "THIRD_PARTY.md", "licenses\MANIFEST.txt", "licenses\WinDivert-LICENSE.txt") {
+            if (-not (Test-Path "dist\GDPI\$f")) { throw "Dağıtımda eksik: $f" }
+          }
+          Get-Content dist\GDPI\licenses\MANIFEST.txt
         shell: pwsh
+      # LGPL/GPL bileşenlerinin (WinDivert, pystray) karşılık gelen kaynak kodu, ikili dosyayla
+      # aynı yerden sunulur (GPLv3 md. 6(d), LGPLv3 md. 4). Bileşenler değiştirilmemiştir.
+      - name: Üçüncü parti kaynak kodu
+        run: |
+          Invoke-WebRequest https://github.com/basil00/WinDivert/archive/refs/tags/v2.2.2.zip -OutFile dist/WinDivert-2.2.2-source.zip
+          Invoke-WebRequest https://github.com/moses-palmer/pystray/archive/refs/tags/v0.19.5.zip -OutFile dist/pystray-0.19.5-source.zip
+          Compress-Archive -Path dist/WinDivert-2.2.2-source.zip, dist/pystray-0.19.5-source.zip -DestinationPath dist/GDPI-third-party-sources.zip -Force
+        shell: pwsh
+      - name: SHA256
+        run: |
+          foreach ($f in "GDPI-windows.zip", "GDPI-third-party-sources.zip") {
+            (Get-FileHash dist/$f -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/$f.sha256
+          }
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: GDPI-windows
+          path: |
+            dist/GDPI-windows.zip
+            dist/GDPI-third-party-sources.zip
+            dist/*.sha256
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
@@ -30,9 +56,17 @@ jobs:
           files: |
             dist/GDPI-windows.zip
             dist/GDPI-windows.zip.sha256
+            dist/GDPI-third-party-sources.zip
+            dist/GDPI-third-party-sources.zip.sha256
           body: |
             **GDPI-windows.zip**'i indir, bir klasöre çıkar, içindeki **GDPI.exe**'ye çift tıkla,
             yönetici iznine "Evet" de, büyük düğmeye bas. Bu kadar. 👋
 
             SmartScreen uyarı verirse: **Ek bilgi → Yine de çalıştır** (exe imzasız, kaynak kod depoda).
             Doğrulamak istersen SHA256 değeri `GDPI-windows.zip.sha256` dosyasında.
+
+            **Lisans:** GDPI'ın kendi kodu MIT lisanslıdır. Paket, kendi lisansları altındaki üçüncü parti
+            bileşenleri içerir (WinDivert: LGPLv3, pystray: LGPLv3 ve diğerleri). Tam lisans metinleri
+            zip içindeki `licenses/` klasöründe, ayrıntılar `THIRD_PARTY.md` dosyasındadır. LGPL bileşenlerinin
+            kaynak kodu `GDPI-third-party-sources.zip` içindedir; exe'yi değiştirilmiş sürümlerle yeniden
+            derlemek için depodaki `build.ps1` yeterlidir.

@@ -101,9 +101,10 @@ Operatörün DPI'ı alan adını bütün halinde göremez, sunucu ise parçalar�
 ## Teşekkürler ve lisans
 
 - Fikir: [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS) ve [zapret](https://github.com/bol-van/zapret). GDPI onların kodunu içermez, aynı yaklaşımı Python ile sıfırdan uygular.
-- Paket yakalama: [WinDivert 2.2](https://reqrypt.org/windivert.html) (LGPLv3), GoodbyeDPI ile aynı sürücü sürümü.
-- Arayüz: [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT), [pystray](https://github.com/moses-palmer/pystray) (LGPLv3), Pillow.
+- Paket yakalama: [WinDivert 2.2.2](https://reqrypt.org/windivert.html) (LGPLv3 / GPLv2 çift lisans; GDPI dağıtımında LGPLv3), GoodbyeDPI ile aynı sürücü sürümü.
+- Arayüz: [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT), [pystray](https://github.com/moses-palmer/pystray) (LGPLv3), [Pillow](https://github.com/python-pillow/Pillow) (MIT-CMU).
 
-GDPI'ın kendi kodu **MIT** lisanslıdır, bkz. [LICENSE](LICENSE). Üçüncü parti lisanslar için [THIRD_PARTY.md](THIRD_PARTY.md).
+GDPI'ın kendi kodu **MIT** lisanslıdır, bkz. [LICENSE](LICENSE). Üçüncü parti lisanslar için [THIRD_PARTY.md](THIRD_PARTY.md); tam metinler [licenses/](licenses/) klasöründe ve
+Release zip'indeki `licenses\` klasöründedir. LGPL bileşenlerinin kaynak kodu her Release'e eklenir.
 
 Görüşürüz, derin paket inceleme. 👋
