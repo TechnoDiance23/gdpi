@@ -98,7 +98,7 @@ class Verdicts(unittest.TestCase):
         q.pending = 9
         e = g["Engine"](g["sanitize_cfg"]({"fake": "checksum"}), lambda m: None)
         p = g["Pkt"](raw)
-        e.send_split(q, p, addr, p.payload, [2, 50])
+        e.send_split(q, p, addr, p.payload, [2, 50], (40, 20))
         self.assertEqual(self.verdict(q.nl.sent[0]), (0, 9))       # aslı düşürüldü
         self.assertEqual(len(q.raw_sent), 4)                       # sahte + 3 parça
         self.assertEqual(q.raw_sent[0][1], ("93.184.216.34", 0))
