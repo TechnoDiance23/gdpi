@@ -27,6 +27,22 @@ klasöründe, dağıtım paketinde ise `licenses/` klasöründedir (derlemede ku
 | PyInstaller bootloader ve run-time hook'lar | gömülü (derleme aracı) | `GPL-2.0-or-later` + **bootloader istisnası**; run-time hook'lar `Apache-2.0` | `PyInstaller-COPYING.txt`, `Apache-2.0.txt` | https://github.com/pyinstaller/pyinstaller |
 | pyinstaller-hooks-contrib run-time hook'ları (yalnızca ilgili paket kullanılıyorsa gömülür) | gömülü (derleme aracı) | gömülen run-time hook'lar `Apache-2.0` (diğer hook'lar GPL-2.0-or-later, yalnızca derlemede çalışır) | dağıtımda `pyinstaller-hooks-contrib-<sürüm>-*` | https://github.com/pyinstaller/pyinstaller-hooks-contrib |
 
+### Android sürümü
+
+`GDPI-android.apk` GDPI'ın kendi Kotlin kodunu ve aşağıdaki yerel kütüphaneyi içerir (`libhev-socks5-tunnel.so`,
+derleme sırasında `android/fetch_hev.sh` ile sabit sürümden derlenir, değiştirilmemiştir). Lisans metinleri APK
+içinde `assets/licenses/` klasöründedir.
+
+| Bileşen | Lisans (SPDX) | Lisans dosyası | Kaynak |
+|---|---|---|---|
+| hev-socks5-tunnel 2.19.3 | `MIT` | `hev-socks5-tunnel-LICENSE.txt` | https://github.com/heiher/hev-socks5-tunnel (etiket `2.19.3`) |
+| hev-socks5-core (alt modül) | `MIT` | `hev-socks5-core-LICENSE.txt` | https://github.com/heiher/hev-socks5-core |
+| hev-task-system (alt modül) | `MIT` | `hev-task-system-LICENSE.txt` | https://github.com/heiher/hev-task-system |
+| yaml (alt modül, hev'in libyaml uyarlaması) | `MIT` | `hev-yaml-LICENSE.txt` | https://github.com/heiher/yaml |
+| lwIP (alt modül) | `BSD-3-Clause` | `lwip-LICENSE.txt` | https://github.com/heiher/lwip |
+
+APK'da başka üçüncü parti kütüphane yok (AndroidX bile kullanılmıyor), yalnızca Android'in kendi API'leri var.
+
 ### Linux sürümü
 
 Linux için hazır paket dağıtılmaz; GDPI kaynaktan (`gdpi.sh`) çalışır ve **hiçbir üçüncü parti bileşeni

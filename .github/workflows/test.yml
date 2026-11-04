@@ -1,4 +1,4 @@
-# Her gönderimde testler: lisans dosyaları + Linux motoru (birim ve gerçek ağda uçtan uca) + arayüz açılış testi
+# Her gönderimde testler: Linux motoru (birim ve gerçek ağda uçtan uca), arayüz açılış testi, Windows öz testi, Android
 name: Test
 
 on:
@@ -49,3 +49,29 @@ jobs:
           $out = Get-Content "$env:APPDATA\GDPI\selftest.txt" -Raw
           $out
           if ($out -match "MOTOR BAŞLAMADI") { throw "Motor başlamadı" }
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: hev-socks5-tunnel kaynağı
+        run: sh fetch_hev.sh
+      - name: Birim testleri (SNI / Host ayrıştırma)
+        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: APK derle
+        run: ./gradlew --no-daemon assembleRelease
+      - name: APK içinde yerel kütüphane var mı
+        run: |
+          unzip -l app/build/outputs/apk/release/app-release.apk | tee /dev/stderr | grep -q 'lib/arm64-v8a/libhev-socks5-tunnel.so'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDPI-android
+          path: android/app/build/outputs/apk/release/app-release.apk
