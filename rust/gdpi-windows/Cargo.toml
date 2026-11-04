@@ -1,0 +1,8 @@
+[package]
+name = "gdpi-windows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gdpi-core = { path = "../gdpi-core" }

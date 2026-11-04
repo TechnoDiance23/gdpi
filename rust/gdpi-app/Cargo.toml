@@ -1,0 +1,12 @@
+[package]
+name = "gdpi-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "gdpi"
+path = "src/main.rs"
+
+[dependencies]
+gdpi-core = { path = "../gdpi-core" }
