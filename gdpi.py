@@ -24,7 +24,7 @@ import threading
 import time
 
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
 WINDOWS = sys.platform == "win32"
 if WINDOWS:
