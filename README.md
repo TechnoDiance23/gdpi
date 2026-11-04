@@ -56,6 +56,20 @@ GDPI.bat
 
 Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\GDPI\GDPI.exe`
 
+### 4) Linux (kaynaktan)
+```
+sudo apt install python3-venv python3-tk nftables      # Fedora: sudo dnf install python3-tkinter nftables
+git clone https://github.com/TechnoDiance23/gdpi.git
+cd gdpi
+./gdpi.sh
+```
+`gdpi.sh` ilk açılışta `.venv` kurar, sonra GDPI'ı yönetici (pkexec/sudo) izniyle açar. Arayüz ve ayarlar
+Windows'takiyle aynıdır; ayarlar `~/.config/GDPI/` altında durur. Linux'ta WinDivert yerine çekirdeğin NFQUEUE
+özelliği ve nftables kullanılır (ek bir sürücü ya da kütüphane gerekmez). GDPI kapanınca kurallar silinir; çökerse
+bile kural `bypass` modunda olduğundan internet kesilmez (kalıntıyı silmek için: `sudo nft delete table inet gdpi`).
+Windows ile başlatma seçeneği Linux'ta yoktur. Tepsi simgesi masaüstüne göre (GNOME'da AppIndicator eklentisi
+gerekebilir) çalışmayabilir; o durumda pencereyi kapatmak GDPI'ı kapatır.
+
 ## Kullanım
 
 | Ekran | Ne işe yarar |
@@ -94,7 +108,7 @@ Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.
 ## Nasıl çalışıyor? (meraklısına)
 
 Operatörler, şifreli bağlantının ilk paketindeki açık metin alan adına (SNI) bakarak engelleme yapar. GDPI,
-[WinDivert](https://reqrypt.org/windivert.html) ile giden paketi yakalar, alan adının tam ortasından iki TCP
+[WinDivert](https://reqrypt.org/windivert.html) (Linux'ta NFQUEUE) ile giden paketi yakalar, alan adının tam ortasından iki TCP
 parçasına böler ve önüne operatörün göreceği, ama sunucunun asla kabul etmeyeceği bir sahte paket koyar.
 Operatörün DPI'ı alan adını bütün halinde göremez, sunucu ise parçaları normal şekilde birleştirir.
 

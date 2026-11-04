@@ -27,7 +27,26 @@ klasöründe, dağıtım paketinde ise `licenses/` klasöründedir (derlemede ku
 | PyInstaller bootloader ve run-time hook'lar | gömülü (derleme aracı) | `GPL-2.0-or-later` + **bootloader istisnası**; run-time hook'lar `Apache-2.0` | `PyInstaller-COPYING.txt`, `Apache-2.0.txt` | https://github.com/pyinstaller/pyinstaller |
 | pyinstaller-hooks-contrib run-time hook'ları (yalnızca ilgili paket kullanılıyorsa gömülür) | gömülü (derleme aracı) | gömülen run-time hook'lar `Apache-2.0` (diğer hook'lar GPL-2.0-or-later, yalnızca derlemede çalışır) | dağıtımda `pyinstaller-hooks-contrib-<sürüm>-*` | https://github.com/pyinstaller/pyinstaller-hooks-contrib |
 
-Kaynaktan çalıştırma (`GDPI.bat`) hiçbir üçüncü parti bileşeni dağıtmaz; paketler kullanıcı tarafından PyPI'dan,
+### Linux sürümü
+
+Linux için hazır paket dağıtılmaz; GDPI kaynaktan (`gdpi.sh`) çalışır ve **hiçbir üçüncü parti bileşeni
+dağıtmaz**. Bileşenler kullanıcının sistemine kullanıcı tarafından kurulur:
+
+| Bileşen | Lisans | Nasıl kullanılır |
+|---|---|---|
+| python-xlib (Linux'ta pystray'in bağımlılığı, pip kurar) | `LGPL-2.1-or-later` | Python `import` |
+| nftables (`nft` komutu, dağıtım paketi) | `GPL-2.0-only` | Ayrı bir program olarak çalıştırılır (`subprocess`); GDPI'a bağlanmaz/gömülmez |
+| Linux çekirdeği NFQUEUE (`nfnetlink_queue`) | `GPL-2.0-only` (çekirdek) | Standart netlink soket arabirimi; GDPI saf Python ile konuşur, `libnetfilter_queue` kullanmaz |
+| Tcl/Tk (`python3-tk`) | TCL lisansı | Python `tkinter` |
+
+GPL lisanslı bir programı ayrı süreç olarak çalıştırmak ve çekirdeğin kullanıcı alanı arabirimini kullanmak, FSF'nin
+SSS'sindeki "aggregate"/ayrı program değerlendirmesine göre genellikle çağıran programı GPL kapsamına almaz
+(https://www.gnu.org/licenses/gpl-faq.html#MereAggregation; çekirdek için `COPYING` dosyasındaki "syscall" notu,
+https://github.com/torvalds/linux/blob/master/LICENSES/exceptions/Linux-syscall-note). Bu yüzden GDPI'ın MIT lisansı
+Linux'ta da korunur. İleride Linux için hazır paket (AppImage, .deb vb.) dağıtılırsa bu tablo ve `licenses/` aynı
+Windows paketindeki gibi pakete eklenmelidir.
+
+Windows'ta kaynaktan çalıştırma (`GDPI.bat`) da hiçbir üçüncü parti bileşeni dağıtmaz; paketler kullanıcı tarafından PyPI'dan,
 WinDivert resmî GitHub sürümünden indirilir.
 
 ## Lisans değerlendirmesi

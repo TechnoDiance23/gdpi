@@ -26,7 +26,11 @@ import time
 APP = "GDPI - Görüşürüz Derin Paket İnceleme"
 VERSION = "1.1.0"
 FROZEN = getattr(sys, "frozen", False)          # PyInstaller ile derlenmiş GDPI.exe
-DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
+WINDOWS = sys.platform == "win32"
+if WINDOWS:
+    DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "GDPI")
+else:                                           # Linux: ~/.config/GDPI (pkexec ile HOME korunur)
+    DATA_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG = os.path.join(DATA_DIR, "ayarlar.json")
 if sys.stderr is None or sys.stdout is None:    # pencereli exe: konsol yok, çıktıyı dosyaya yönlendir
@@ -167,6 +171,224 @@ class WinDivert:
         self.dll.WinDivertClose(self.h)
 
 
+# ----------------------------------------------------------------- Linux: NFQUEUE + nftables
+NFQ_NUM = 4744                                  # kuyruk numarası
+NFQ_MARK = 0x47445049                           # GDPI'ın kendi gönderdiği paketler: kuyruğa geri girmez
+NFT_TABLE = "gdpi"
+
+
+def nft(script):
+    try:
+        r = subprocess.run(["nft", "-f", "-"], input=script, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise OSError(2, "nftables kurulu değil (ör. sudo apt install nftables).") from None
+    if r.returncode:
+        raise OSError(r.returncode, (r.stderr.strip() or "nft hatası")[:300])
+
+
+def nft_rules(cfg):
+    """Giden HTTP/HTTPS paketlerinin ilk birkaçını kuyruğa gönderir; QUIC'i düşürür; DNS'i yönlendirir.
+    'bypass': GDPI kapanır ya da çökerse paketler kuyruğa takılmadan normal akar."""
+    out = [f"meta mark {NFQ_MARK:#x} return", 'oifname "lo" return',
+           f"tcp dport {{ 80, 443 }} ct original packets < 12 queue num {NFQ_NUM} bypass"]
+    if cfg["block_quic"]:
+        out.append("udp dport 443 drop")
+    rules = (f"table inet {NFT_TABLE} {{\n chain out {{ type filter hook output priority 0; policy accept;\n  "
+             + "\n  ".join(out) + "\n }\n")
+    if cfg["dns_redirect"]:
+        a, port = cfg["dns_addr"], int(cfg["dns_port"])
+        rules += (" chain dns { type nat hook output priority -100; policy accept;\n"
+                  f"  ip daddr != 127.0.0.0/8 udp dport 53 dnat ip to {a}:{port}\n }}\n")
+    return rules + "}\n"
+
+
+def nft_remove():
+    try:
+        subprocess.run(["nft", "delete", "table", "inet", NFT_TABLE], capture_output=True)
+    except OSError:
+        pass
+
+
+def inet_checksum(data: bytes) -> int:
+    if len(data) % 2:
+        data += b"\0"
+    s = sum(memoryview(data).cast("H"))
+    while s >> 16:
+        s = (s & 0xFFFF) + (s >> 16)
+    s = ~s & 0xFFFF
+    return int.from_bytes(s.to_bytes(2, sys.byteorder), "big")
+
+
+def fix_checksums(r: bytearray):
+    """IPv4/IPv6 + TCP/UDP sağlama toplamlarını yeniden hesaplar (WinDivertHelperCalcChecksums karşılığı)."""
+    v6 = r[0] >> 4 == 6
+    if v6:
+        l4, proto, src, dst = 40, r[6], r[8:24], r[24:40]
+    else:
+        l4, proto, src, dst = (r[0] & 15) * 4, r[9], r[12:16], r[16:20]
+        r[10:12] = b"\0\0"
+        r[10:12] = inet_checksum(bytes(r[:l4])).to_bytes(2, "big")
+    if proto not in (6, 17):
+        return
+    off = l4 + (16 if proto == 6 else 6)
+    seg_len = len(r) - l4
+    r[off:off + 2] = b"\0\0"
+    pseudo = bytes(src) + bytes(dst) + (seg_len.to_bytes(4, "big") + b"\0\0\0" + bytes([proto]) if v6
+                                        else b"\0" + bytes([proto]) + seg_len.to_bytes(2, "big"))
+    c = inet_checksum(pseudo + bytes(r[l4:]))
+    r[off:off + 2] = (c or 0xFFFF if proto == 17 else c).to_bytes(2, "big")
+
+
+class NFQueue:
+    """Linux NFQUEUE'yu ek kütüphane olmadan (doğrudan netlink) kullanan, WinDivert sınıfıyla
+    aynı arabirime sahip sarmalayıcı. Yalnızca giden TCP 80/443 kuyruğa gelir; QUIC engeli ve DNS
+    yönlendirme nftables kurallarıyla çekirdekte yapılır."""
+    import struct as _st
+
+    def __init__(self, cfg):
+        import socket
+        if os.geteuid() != 0:
+            raise OSError(1, "Yönetici (root) izni gerekli: ./gdpi.sh ile açın.")
+        nft_remove()
+        try:
+            subprocess.run(["modprobe", "-a", "nfnetlink_queue", "nft_queue"], capture_output=True)
+        except OSError:
+            pass
+        rules = nft_rules(cfg)
+        try:
+            nft(rules)
+        except OSError:                             # conntrack ifadesi yoksa: tüm 80/443 paketleri
+            try:
+                nft(rules.replace(" ct original packets < 12", ""))
+            except OSError as e:
+                if "queue" in str(e):
+                    raise OSError(e.errno, "Çekirdekte NFQUEUE desteği yok (nft_queue / nfnetlink_queue "
+                                           "modülleri yüklenemedi).") from None
+                raise
+        try:
+            self.nl = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, 12)   # NETLINK_NETFILTER
+            self.nl.bind((0, 0))
+            self.nl.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
+            self.nl.settimeout(0.5)
+            self.seq = 0
+            self._config(self._attr(1, self._st.pack("!BxH", 1, 0)))              # CMD_BIND
+            self._config(self._attr(2, self._st.pack("!IB", 0xFFFF, 2)))          # COPY_PACKET
+            self.raw4 = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.raw6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            for s in (self.raw4, self.raw6):
+                s.setsockopt(socket.SOL_SOCKET, 36, NFQ_MARK)                     # SO_MARK
+        except Exception:
+            nft_remove()
+            raise
+        self.closed = False
+        self.pending = None                         # karar bekleyen paket kimliği
+
+    # --- netlink yardımcıları
+    def _attr(self, t, data):
+        a = self._st.pack("=HH", 4 + len(data), t) + data
+        return a + b"\0" * (-len(a) % 4)
+
+    def _msg(self, mtype, body, flags=1):
+        self.seq += 1
+        nfgen = self._st.pack("!BBH", 0, 0, NFQ_NUM)
+        return self._st.pack("=IHHII", 16 + 4 + len(body), (3 << 8) | mtype, flags, self.seq, 0) + nfgen + body
+
+    def _config(self, attr):
+        self.nl.send(self._msg(2, attr, flags=1 | 4))                              # REQUEST|ACK
+        while True:
+            data = self.nl.recv(65536)
+            ln, t = self._st.unpack_from("=IH", data)
+            if t == 2:                                                             # NLMSG_ERROR
+                err = -self._st.unpack_from("=i", data, 16)[0]
+                if err:
+                    raise OSError(err, f"NFQUEUE açılamadı ({os.strerror(err)}). "
+                                       "Çekirdekte nfnetlink_queue modülü olmalı.")
+                return
+
+    def _verdict(self, pid, verdict):
+        try:
+            self.nl.send(self._msg(1, self._attr(2, self._st.pack("!II", verdict, pid))))
+        except OSError:
+            pass
+
+    # --- WinDivert ile aynı arabirim
+    def recv(self):
+        import socket
+        if self.pending is not None:                # işlenip yerine yenisi gönderilmiş: aslını düşür
+            self._verdict(self.pending, 0)
+            self.pending = None
+        while not self.closed:
+            try:
+                data = self.nl.recv(70000)
+            except socket.timeout:
+                continue
+            except OSError:
+                if self.closed:
+                    break
+                continue                                                           # ENOBUFS vb.
+            pos = 0
+            while pos + 16 <= len(data):
+                ln, t = self._st.unpack_from("=IH", data, pos)
+                if ln < 16:
+                    break
+                if t == (3 << 8):                                                  # NFQNL_MSG_PACKET
+                    pid, payload, a = None, None, pos + 20
+                    while a + 4 <= pos + ln:
+                        alen, atype = self._st.unpack_from("=HH", data, a)
+                        if alen < 4:
+                            break
+                        atype &= 0x3FFF
+                        if atype == 1:
+                            pid = self._st.unpack_from("!I", data, a + 4)[0]
+                        elif atype == 10:
+                            payload = bytearray(data[a + 4:a + alen])
+                        a += (alen + 3) & ~3
+                    if pid is not None and payload:
+                        self.pending = pid
+                        return payload, {"id": pid, "orig": payload}
+                    if pid is not None:
+                        self._verdict(pid, 1)
+                pos += (ln + 3) & ~3
+        return None
+
+    @staticmethod
+    def outbound(addr):
+        return True
+
+    def checksums(self, pkt: bytearray, addr):
+        fix_checksums(pkt)
+
+    def send(self, pkt: bytearray, addr, fix_checksums=True):
+        if pkt is addr["orig"]:                     # dokunulmayan paket: olduğu gibi geçsin
+            if self.pending == addr["id"]:
+                self._verdict(addr["id"], 1)
+                self.pending = None
+            return
+        if self.pending == addr["id"]:              # yerine yeni paketler gidiyor: aslını düşür
+            self._verdict(addr["id"], 0)
+            self.pending = None
+        if fix_checksums:
+            self.checksums(pkt, addr)
+        try:
+            if pkt[0] >> 4 == 6:
+                import socket
+                self.raw6.sendto(pkt, (socket.inet_ntop(socket.AF_INET6, bytes(pkt[24:40])), 0))
+            else:
+                self.raw4.sendto(pkt, (".".join(map(str, pkt[16:20])), 0))
+        except OSError:
+            pass
+
+    def close(self):
+        self.closed = True
+        nft_remove()
+        for s in (self.nl, self.raw4, self.raw6):
+            try:
+                s.close()
+            except OSError:
+                pass
+
+
+
 class Pkt:
     """IPv4/IPv6 + TCP/UDP başlıklarını doğrudan baytlar üzerinde okuyup yazar."""
 
@@ -234,7 +456,7 @@ class Engine:
         return f
 
     def start(self):
-        self.wd = WinDivert(self.filter_str())
+        self.wd = WinDivert(self.filter_str()) if WINDOWS else NFQueue(self.cfg)
         self.thread = threading.Thread(target=self.loop, daemon=True)
         self.thread.start()
 
@@ -396,6 +618,8 @@ def shield_image(on: bool, size=64):
 
 
 def autostart_enabled():
+    if not WINDOWS:
+        return False
     return subprocess.run(["schtasks", "/query", "/tn", TASK], capture_output=True,
                           creationflags=0x08000000).returncode == 0
 
@@ -405,6 +629,8 @@ def set_autostart(on: bool):
     Görev yalnızca Program Files'a kopyalanan exe'yi çalıştırır: oraya sadece yöneticiler yazabilir,
     böylece kullanıcı klasöründeki dosyayı değiştiren biri yönetici yetkisi kazanamaz.
     Başarılıysa None, değilse açıklama döndürür."""
+    if not WINDOWS:
+        return None if not on else "Linux'ta otomatik başlatma yok; gdpi.sh'i oturum başlangıcına ekleyebilirsiniz."
     if not on:
         subprocess.run(["schtasks", "/delete", "/f", "/tn", TASK], capture_output=True, creationflags=0x08000000)
         return None
@@ -477,7 +703,7 @@ C = {
     "line": "#243042", "text": "#e6edf6", "mute": "#8a98ab", "blue": "#2f80ff", "green": "#22c55e",
     "red": "#ef4444", "glow_on": "#123d2a", "glow_off": "#1a2230",
 }
-FONT = "Segoe UI"
+FONT = "Segoe UI" if WINDOWS else "DejaVu Sans"
 
 
 class PowerButton(ctk.CTkCanvas):
@@ -538,6 +764,8 @@ class App(ctk.CTk):
         try:                                         # başlık ve görev çubuğu simgesi: kalkan
             ico = os.path.join(os.path.dirname(CONFIG), "gdpi.ico")
             shield_image(True, 256).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
+            if not WINDOWS:
+                raise OSError                       # Linux'ta .ico başlık simgesi desteklenmez
             self.after(300, lambda: self.iconbitmap(ico))   # CTk kendi simgesini 200 ms'de koyuyor
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gdpi.app")
         except Exception:
@@ -563,7 +791,7 @@ class App(ctk.CTk):
         self.make_tray()
         self.after(50, self.style_titlebar)
         if not is_admin():
-            self.log("Yönetici izni yok — GDPI.bat ile açın.")
+            self.log("Yönetici izni yok — " + ("GDPI.bat" if WINDOWS else "./gdpi.sh") + " ile açın.")
         if tray_start:
             self.withdraw()
             self.toggle()
@@ -868,8 +1096,12 @@ class App(ctk.CTk):
             pystray.MenuItem(lambda _: "Durdur" if self.engine else "Başlat", ui(self.toggle)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Çıkış", ui(self.quit_app)))
-        self.tray = pystray.Icon("GDPI", shield_image(False), "GDPI - Kapalı", menu)
-        self.tray.run_detached()
+        try:
+            self.tray = pystray.Icon("GDPI", shield_image(False), "GDPI - Kapalı", menu)
+            self.tray.run_detached()
+        except Exception as e:                       # Linux: tepsi desteği olmayan masaüstü
+            self.tray = None
+            self.log(f"Tepsi simgesi kullanılamıyor: {e}")
 
     def update_ui_state(self):
         on = bool(self.engine)
@@ -971,6 +1203,8 @@ class App(ctk.CTk):
 
 
 def is_admin():
+    if not WINDOWS:
+        return os.geteuid() == 0
     try:
         return bool(ctypes.windll.shell32.IsUserAnAdmin())
     except Exception:
@@ -1004,8 +1238,24 @@ def selftest():
         f.write("\n".join(out) + "\n")
 
 
+def linux_elevate():
+    """Linux: pkexec (yoksa sudo) ile root olarak yeniden başlatır; masaüstü oturum değişkenleri korunur."""
+    import shutil
+    keep = ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XDG_CONFIG_HOME", "HOME",
+            "DBUS_SESSION_BUS_ADDRESS", "LANG")
+    env = [f"{k}={os.environ[k]}" for k in keep if os.environ.get(k)]
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("xhost"):     # XWayland'de root'a pencere izni
+        subprocess.run(["xhost", "+SI:localuser:root"], capture_output=True)
+    args = [sys.executable, os.path.abspath(__file__), "--no-elevate"] + sys.argv[1:]
+    if shutil.which("pkexec") and os.environ.get("DISPLAY"):
+        os.execvp("pkexec", ["pkexec", "env"] + env + args)
+    os.execvp("sudo", ["sudo", "env"] + env + args)
+
+
 if __name__ == "__main__":
-    if not FROZEN and not is_admin() and "--no-elevate" not in sys.argv:   # exe zaten yönetici ister
+    if not WINDOWS and not is_admin() and "--no-elevate" not in sys.argv:
+        linux_elevate()
+    if WINDOWS and not FROZEN and not is_admin() and "--no-elevate" not in sys.argv:   # exe zaten yönetici ister
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable,
                                             f'"{os.path.abspath(__file__)}" --no-elevate', None, 1)
         sys.exit()

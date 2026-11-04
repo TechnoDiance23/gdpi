@@ -1,0 +1,34 @@
+# Her gönderimde testler: lisans dosyaları + Linux motoru (birim ve gerçek ağda uçtan uca) + arayüz açılış testi
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bağımlılıklar
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q nftables xvfb
+          python -m pip install -r requirements.txt
+      - name: Birim testleri
+        run: python -m unittest discover -s tests -v
+      - name: Uçtan uca (NFQUEUE, root)
+        run: sudo -E env GDPI_E2E=1 "$(which python)" -m unittest tests.test_linux_engine -v
+      - name: Arayüz açılış testi
+        run: |
+          set +e
+          HOME=$RUNNER_TEMP xvfb-run -a timeout 10 python gdpi.py --no-elevate
+          code=$?
+          test $code -eq 124 || { echo "Arayüz erken kapandı ($code)"; cat $RUNNER_TEMP/.config/GDPI/hata.txt 2>/dev/null; exit 1; }

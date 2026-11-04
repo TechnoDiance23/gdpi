@@ -85,6 +85,8 @@ def license_files(dist):
 
 
 def main(dest):
+    if hasattr(sys.stdout, "reconfigure"):     # Windows konsolu (cp1252) Türkçe karakterde hata vermesin
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     dest = Path(dest)
     if dest.exists():
         shutil.rmtree(dest)
