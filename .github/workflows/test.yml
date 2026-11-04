@@ -57,3 +57,75 @@ jobs:
           $out = Get-Content "$env:APPDATA\GDPI\selftest.txt" -Raw
           $out
           if ($out -match "MOTOR BAŞLAMADI") { throw "Motor başlamadı" }
+
+  # ---------------------------------------------------------------- Rust (v2.0 beta)
+  rust-linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Bağımlılıklar
+        run: sudo apt-get update -q && sudo apt-get install -y -q nftables xvfb curl libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libxkbcommon-x11-0 libgl1-mesa-dri libegl1
+      - name: Fark derlemi (Python gdpi.py ile beklenen sonuçlar)
+        run: python -I gdpi-core/tests/gen_corpus.py
+      - name: Birim + fark + proptest
+        run: GDPI_REQUIRE_CORPUS=1 cargo test --workspace --release
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Uçtan uca (NFQUEUE, root)
+        run: |
+          cargo test -p gdpi-linux --release --test e2e --no-run
+          bin=$(ls -t target/release/deps/e2e-* | grep -v '\.d$' | head -1)
+          sudo env GDPI_E2E=1 GDPI_E2E_STRICT=1 "$bin" --nocapture --test-threads=1
+      - name: Arayüz açılış testi
+        run: |
+          cargo build -p gdpi-app --release
+          set +e
+          HOME=$RUNNER_TEMP xvfb-run -a timeout 10 target/release/gdpi --no-elevate
+          code=$?
+          test $code -eq 124 || { echo "Arayüz erken kapandı ($code)"; cat $RUNNER_TEMP/.config/GDPI/hata.txt 2>/dev/null; exit 1; }
+
+  rust-windows-selftest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Derle
+        run: cargo build -p gdpi-app --release --manifest-path rust/Cargo.toml
+      - name: Testler
+        run: cargo test --workspace --release --manifest-path rust/Cargo.toml
+      - name: Öz test (WinDivert, gerçek ağ)
+        shell: pwsh
+        run: |
+          ./fetch_windivert.ps1
+          New-Item -ItemType Directory -Force t | Out-Null
+          Copy-Item rust/target/release/gdpi.exe t/GDPI.exe
+          Copy-Item -Recurse windivert t/windivert
+          $p = Start-Process t/GDPI.exe -ArgumentList "--selftest","--no-elevate" -Wait -PassThru
+          $out = Get-Content "$env:APPDATA\GDPI\selftest.txt" -Raw
+          $out
+          if ($out -match "MOTOR BAŞLAMADI") { throw "Motor başlamadı" }
+          if ($out -notmatch "GDPI açık") { throw "Öz test eksik" }
+      - name: Deneme paketi
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE, THIRD_PARTY.md t/
+          Copy-Item -Recurse licenses t/licenses
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDPI-rust-windows-deneme
+          path: t/
