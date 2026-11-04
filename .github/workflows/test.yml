@@ -112,3 +112,12 @@ jobs:
           $out
           if ($out -match "MOTOR BAŞLAMADI") { throw "Motor başlamadı" }
           if ($out -notmatch "GDPI açık") { throw "Öz test eksik" }
+      - name: Deneme paketi
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE, THIRD_PARTY.md t/
+          Copy-Item -Recurse licenses t/licenses
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDPI-rust-windows-deneme
+          path: t/
