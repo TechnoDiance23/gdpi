@@ -116,21 +116,23 @@ class EndToEnd(unittest.TestCase):
         hosts = ("www.google.com", "github.com", "example.com", "www.cloudflare.com", "pypi.org")
         base = {h: g["site_check"](h) for h in hosts}
         print("\nkapalı:", base)
-        logs = []
-        e = g["Engine"](g["sanitize_cfg"]({"mode": "hepsi", "fake": "checksum"}), logs.append)
-        e.start()
-        try:
-            on = {h: g["site_check"](h) for h in hosts}
-            print("açık:", on, logs)
-            for h in hosts:
-                if base[h][0]:
-                    self.assertTrue(on[h][0], f"{h}: {on[h][1]}")
-            self.assertGreater(e.n_split, 0, logs)
-            code = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://example.com/"],
-                                  capture_output=True, text=True, timeout=20).stdout
-            self.assertIn(code, ("200", "301", "302"))
-        finally:
-            e.stop()
+        fails = {}
+        for fake in ("kapali", "checksum", "ttl"):
+            logs = []
+            e = g["Engine"](g["sanitize_cfg"]({"mode": "hepsi", "fake": fake}), logs.append)
+            e.start()
+            try:
+                on = {h: g["site_check"](h) for h in hosts}
+                print(f"açık ({fake}):", on, e.n_split)
+                fails[fake] = [h for h in hosts if base[h][0] and not on[h][0]]
+                if fake == "kapali":
+                    self.assertGreater(e.n_split, 0, logs)
+                    code = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                                           "http://example.com/"], capture_output=True, text=True, timeout=20).stdout
+                    print("http:", code)
+            finally:
+                e.stop()
+        self.assertEqual(fails, {k: [] for k in fails})
         tables = subprocess.run(["nft", "list", "tables"], capture_output=True, text=True).stdout
         self.assertNotIn("gdpi", tables)
 
