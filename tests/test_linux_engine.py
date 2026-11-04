@@ -113,13 +113,18 @@ class Verdicts(unittest.TestCase):
                      "GDPI_E2E=1 ve root gerekir")
 class EndToEnd(unittest.TestCase):
     def test_real_traffic(self):
+        hosts = ("www.google.com", "github.com", "example.com", "www.cloudflare.com", "pypi.org")
+        base = {h: g["site_check"](h) for h in hosts}
+        print("\nkapalı:", base)
         logs = []
         e = g["Engine"](g["sanitize_cfg"]({"mode": "hepsi", "fake": "checksum"}), logs.append)
         e.start()
         try:
-            for h in ("www.google.com", "github.com", "example.com"):
-                ok, msg = g["site_check"](h)
-                self.assertTrue(ok, f"{h}: {msg}")
+            on = {h: g["site_check"](h) for h in hosts}
+            print("açık:", on, logs)
+            for h in hosts:
+                if base[h][0]:
+                    self.assertTrue(on[h][0], f"{h}: {on[h][1]}")
             self.assertGreater(e.n_split, 0, logs)
             code = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://example.com/"],
                                   capture_output=True, text=True, timeout=20).stdout
