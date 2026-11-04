@@ -68,7 +68,7 @@ jobs:
         with:
           workspaces: rust
       - name: Bağımlılıklar
-        run: sudo apt-get update -q && sudo apt-get install -y -q nftables xvfb curl RUST_APT_DEPS
+        run: sudo apt-get update -q && sudo apt-get install -y -q nftables xvfb curl libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libxkbcommon-x11-0 libgl1-mesa-dri libegl1
       - name: Fark derlemi (Python gdpi.py ile beklenen sonuçlar)
         run: python -I gdpi-core/tests/gen_corpus.py
       - name: Birim + fark + proptest
