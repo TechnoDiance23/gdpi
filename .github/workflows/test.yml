@@ -79,7 +79,7 @@ jobs:
         run: |
           cargo test -p gdpi-linux --release --test e2e --no-run
           bin=$(ls -t target/release/deps/e2e-* | grep -v '\.d$' | head -1)
-          sudo env GDPI_E2E=1 "$bin" --nocapture
+          sudo env GDPI_E2E=1 GDPI_E2E_STRICT=1 "$bin" --nocapture
       - name: Arayüz açılış testi
         run: |
           cargo build -p gdpi-app --release

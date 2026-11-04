@@ -6,3 +6,6 @@ license.workspace = true
 
 [dependencies]
 gdpi-core = { path = "../gdpi-core" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.29", features = ["socket", "net", "user", "uio"] }
