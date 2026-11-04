@@ -101,7 +101,7 @@ jobs:
       - name: Ekran görüntülerini geçici dala koy
         if: github.ref == 'refs/heads/android'
         run: |
-          mkdir /tmp/s && cp android/build/shots/*.png /tmp/s/
+          mkdir /tmp/s && cp build/shots/*.png /tmp/s/
           cd /tmp/s && git init -q -b ekran-gecici && git add . 
           git -c user.name=ci -c user.email=ci@localhost commit -qm ekran
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ekran-gecici
