@@ -14,6 +14,7 @@ pub const NFQ_MARK: u32 = 0x4744_5049;
 pub const NFT_TABLE: &str = "gdpi";
 
 pub type LogFn = Arc<dyn Fn(&str) + Send + Sync>;
+type JunkFn = Box<dyn FnMut(&mut [u8]) + Send>;
 
 /// Arayüzde gösterilen sayaçlar.
 #[derive(Debug, Default)]
@@ -59,7 +60,7 @@ pub struct Engine {
     /// yerel port -> asıl DNS sunucusu
     dns_map: HashMap<u16, [u8; 4]>,
     dns_ip: [u8; 4],
-    junk: Box<dyn FnMut(&mut [u8]) + Send>,
+    junk: JunkFn,
 }
 
 impl Engine {

@@ -11,3 +11,4 @@ fastrand = "2"
 
 [dev-dependencies]
 proptest = "1"
+hex = "0.4"
