@@ -37,6 +37,17 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           prerelease: true
+          name: GDPI ${{ github.ref_name }} (Rust, deneme)
+          make_latest: false
+          body: |
+            GDPI'ın Rust ile baştan yazılmış hali. Python sürümüyle aynı işi yapıyor ama çok daha küçük
+            (tek bir exe, yaklaşık 8 MB) ve biraz daha hızlı. Henüz deneme aşamasında; sorunsuz kullanmak
+            istersen en son Python sürümünü (v1.2.2) indir.
+
+            Windows'ta **GDPI-rust-windows.zip**'i indir, bir klasöre çıkar, içindeki GDPI.exe'yi aç ve yönetici
+            iznine "Evet" de. Linux'ta **GDPI-rust-linux.tar.gz**'i açıp `./gdpi` ile çalıştır.
+
+            Python sürümüyle aynı anda açma, ikisi aynı paketleri yakalamaya çalışır. GoodbyeDPI da kapalı olmalı.
           files: dist/GDPI-rust-windows.zip*
 
   linux:
@@ -61,4 +72,15 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           prerelease: true
+          name: GDPI ${{ github.ref_name }} (Rust, deneme)
+          make_latest: false
+          body: |
+            GDPI'ın Rust ile baştan yazılmış hali. Python sürümüyle aynı işi yapıyor ama çok daha küçük
+            (tek bir exe, yaklaşık 8 MB) ve biraz daha hızlı. Henüz deneme aşamasında; sorunsuz kullanmak
+            istersen en son Python sürümünü (v1.2.2) indir.
+
+            Windows'ta **GDPI-rust-windows.zip**'i indir, bir klasöre çıkar, içindeki GDPI.exe'yi aç ve yönetici
+            iznine "Evet" de. Linux'ta **GDPI-rust-linux.tar.gz**'i açıp `./gdpi` ile çalıştır.
+
+            Python sürümüyle aynı anda açma, ikisi aynı paketleri yakalamaya çalışır. GoodbyeDPI da kapalı olmalı.
           files: dist/GDPI-rust-linux.tar.gz*
