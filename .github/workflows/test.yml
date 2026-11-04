@@ -25,7 +25,15 @@ jobs:
       - name: Birim testleri
         run: python -m unittest discover -s tests -v
       - name: Uçtan uca (NFQUEUE, root)
-        run: sudo env GDPI_E2E=1 "$(which python)" -m unittest tests.test_linux_engine -v
+        # Gerçek sitelere bağlanıyor; bulut ağındaki anlık bir aksaklık yüzünden düşmesin diye bir kez daha dener
+        run: |
+          py="$(which python)"
+          sudo env GDPI_E2E=1 "$py" -m unittest tests.test_linux_engine -v || {
+            echo "::warning::Uçtan uca test ilk denemede başarısız oldu, 20 sn sonra bir kez daha deneniyor"
+            sleep 20
+            sudo nft delete table inet gdpi 2>/dev/null || true
+            sudo env GDPI_E2E=1 "$py" -m unittest tests.test_linux_engine -v
+          }
       - name: Arayüz açılış testi
         run: |
           set +e
