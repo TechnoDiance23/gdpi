@@ -823,7 +823,7 @@ class App(ctk.CTk):
             ctk.CTkLabel(h, image=self._logo, text="").grid(row=0, column=0, padx=(18, 8), pady=14)
         except Exception:
             pass
-        ctk.CTkLabel(h, text="gdpi", font=(FONT, 22, "bold"), text_color="white").grid(row=0, column=1)
+        ctk.CTkLabel(h, text="GDPI", font=(FONT, 22, "bold"), text_color="white").grid(row=0, column=1)
         ctk.CTkLabel(h, text=" KİŞİSEL ", font=(FONT, 10, "bold"), text_color="#cbd5e1",
                      fg_color="#1e3a7a", corner_radius=10).grid(row=0, column=2, padx=10)
         ctk.CTkLabel(h, text="Görüşürüz Derin Paket İnceleme", font=(FONT, 12),
