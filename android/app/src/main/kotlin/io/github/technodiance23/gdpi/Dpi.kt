@@ -87,7 +87,18 @@ object Dpi {
         return true
     }
 
-    class Plan(val host: String, val data: ByteArray, val cuts: List<Int>) {
+    /**
+     * Masaüstündeki Engine.decoy: gerçek isteğin kopyası, site adı aynı uzunlukta zararsız bir adla değişmiş.
+     * DPI bunu geçerli bir istek sanıp bağlantıyı "zararsız" diye işaretliyor.
+     */
+    fun decoy(data: ByteArray, start: Int, len: Int): ByteArray {
+        val name = if (len >= 5) ("a".repeat(maxOf(len - 4, 1)) + ".com").take(len) else "x".repeat(len)
+        val out = data.copyOf()
+        name.toByteArray(Charsets.US_ASCII).copyInto(out, start)
+        return out
+    }
+
+    class Plan(val host: String, val data: ByteArray, val cuts: List<Int>, val start: Int = 0, val len: Int = 0) {
         /** Kesim noktalarına göre parçalar (sıralı, boş parça yok). */
         fun parts(): List<ByteArray> {
             val c = cuts.filter { it in 1 until data.size }.distinct().sorted()
@@ -114,7 +125,7 @@ object Dpi {
         } else {
             listOf(2, start + ln / 2)
         }
-        return Plan(host, data, cuts)
+        return Plan(host, data, cuts, start, ln)
     }
 
     /** Ayarlardaki satırları temizler: küçük harf, boşluk yok, geçerli alan adı. */

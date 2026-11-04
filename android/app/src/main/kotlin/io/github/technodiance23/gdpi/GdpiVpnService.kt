@@ -62,7 +62,7 @@ class GdpiVpnService : VpnService() {
                 } catch (_: Exception) { proto == 17 }
             },
             cfg = Socks.Snapshot(
-                onlyTargets = cfg.onlyTargets, ttlMode = cfg.fake == "ttl", ttl = cfg.ttl,
+                onlyTargets = cfg.onlyTargets, ttlMode = cfg.fake == "ttl", fakeMode = cfg.fake == "fake", ttl = cfg.ttl,
                 blockQuic = cfg.blockQuic, dnsRedirect = cfg.dnsRedirect,
                 targets = cfg.targets, bypass = cfg.bypass,
             ),

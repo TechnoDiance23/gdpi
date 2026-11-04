@@ -157,7 +157,7 @@ class MainActivity : Activity() {
             )
         } else {
             (if (cfg.onlyTargets) "Sadece hedef listesi" else "Her site") + "   ·   " +
-                (if (cfg.fake == "ttl") "düşük TTL" else "sadece bölme")
+                when (cfg.fake) { "ttl" -> "düşük TTL"; "split" -> "sadece bölme"; else -> "sahte paket" }
         }
     }
 
@@ -265,16 +265,17 @@ class MainActivity : Activity() {
         col.addView(card().apply { addView(head("Mod", C_TEXT)); addView(mode) }, cardParams())
 
         val fake = RadioGroup(this)
+        val decoy = radio("Sahte paket + böl (önerilen)")
         val split = radio("Sadece böl")
         val ttl = radio("Düşük TTL (ilk parça sunucuya varmadan düşer)")
-        fake.addView(split); fake.addView(ttl)
-        (if (cfg.fake == "ttl") ttl else split).isChecked = true
+        fake.addView(decoy); fake.addView(split); fake.addView(ttl)
+        when (cfg.fake) { "ttl" -> ttl; "split" -> split; else -> decoy }.isChecked = true
         val ttlVal = EditText(this).apply {
             setText(cfg.ttl.toString()); setTextColor(C_TEXT); inputType = InputType.TYPE_CLASS_NUMBER
         }
         col.addView(card().apply {
             addView(head("Yöntem", C_TEXT))
-            addView(note("Root olmadan bozuk sağlama toplamlı sahte paket gönderilemiyor. Sadece bölme çoğu yerde yetiyor, olmazsa düşük TTL'yi dene."))
+            addView(note("Sahte paket: önce site adı değiştirilmiş bir istek düşük TTL ile gider, DPI onu görüp bağlantıyı zararsız sanar. Türk Telekom'da sadece bölmek yetmiyor. Açılmayan site olursa TTL'yi 4-6 yapıp dene."))
             addView(fake)
             addView(note("TTL değeri (1-32, genelde 3-6 arası iyi)"))
             addView(ttlVal)
@@ -298,8 +299,8 @@ class MainActivity : Activity() {
 
         col.addView(saveButton {
             cfg.onlyTargets = list.isChecked
-            cfg.fake = if (ttl.isChecked) "ttl" else "split"
-            cfg.ttl = ttlVal.text.toString().toIntOrNull() ?: 4
+            cfg.fake = when { ttl.isChecked -> "ttl"; split.isChecked -> "split"; else -> "fake" }
+            cfg.ttl = ttlVal.text.toString().toIntOrNull() ?: 3
             cfg.blockQuic = quic.isChecked
             cfg.dnsRedirect = dns.isChecked
             cfg.excludedApps = apps.text.toString().split('\n', ',', ' ').map { it.trim() }.filter { it.isNotEmpty() }.distinct()

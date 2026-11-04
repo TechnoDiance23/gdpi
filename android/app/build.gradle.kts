@@ -6,6 +6,7 @@ plugins {
 // android/hev-socks5-tunnel klasörüne indirir. Klasör yoksa yalnızca Kotlin kısmı derlenir.
 val hevDir = rootProject.file("hev-socks5-tunnel")
 val withNative = hevDir.resolve("Android.mk").exists()
+val nativeMk = rootProject.file("native/Android.mk")
 
 android {
     namespace = "io.github.technodiance23.gdpi"
@@ -34,7 +35,7 @@ android {
 
     if (withNative) {
         externalNativeBuild {
-            ndkBuild { path = hevDir.resolve("Android.mk") }
+            ndkBuild { path = nativeMk }
         }
     }
 

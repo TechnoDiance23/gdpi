@@ -10,13 +10,13 @@ class Config(ctx: Context) {
         get() = sp.getString("mode", "hepsi") == "liste"
         set(v) = sp.edit().putString("mode", if (v) "liste" else "hepsi").apply()
 
-    /** "split": sadece böl, "ttl": ilk parça düşük TTL ile gider. */
+    /** "fake": önce sahte istek (düşük TTL), "split": sadece böl, "ttl": ilk parça düşük TTL ile gider. */
     var fake: String
-        get() = sp.getString("fake", "split") ?: "split"
+        get() = sp.getString("fake", "fake") ?: "fake"
         set(v) = sp.edit().putString("fake", v).apply()
 
     var ttl: Int
-        get() = sp.getInt("ttl", 4)
+        get() = sp.getInt("ttl", 3)
         set(v) = sp.edit().putInt("ttl", v.coerceIn(1, 32)).apply()
 
     var blockQuic: Boolean

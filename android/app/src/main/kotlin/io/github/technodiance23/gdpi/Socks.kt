@@ -33,7 +33,7 @@ class Socks(
     private val ownPeer: (Int, InetSocketAddress, InetSocketAddress) -> Boolean = { _, _, _ -> true },
 ) {
     class Snapshot(
-        val onlyTargets: Boolean, val ttlMode: Boolean, val ttl: Int, val blockQuic: Boolean,
+        val onlyTargets: Boolean, val ttlMode: Boolean, val fakeMode: Boolean, val ttl: Int, val blockQuic: Boolean,
         val dnsRedirect: Boolean, val targets: List<String>, val bypass: List<String>,
     )
 
@@ -133,6 +133,7 @@ class Socks(
             return
         }
         nSplit.incrementAndGet()
+        if (cfg.fakeMode && Fake.available && plan.len > 0 && sendDecoy(r, out, plan)) return
         for ((k, part) in plan.parts().withIndex()) {
             // Düşük TTL modu: ilk parça DPI'a kadar gider ama sunucuya varmadan düşer.
             // Çekirdek onu birazdan normal TTL ile yeniden yollar, sunucu baytları doğru sırayla alır.
@@ -141,6 +142,29 @@ class Socks(
             out.write(part)
             if (low) { Thread.sleep(5); setTtl(r, 64) }
         }
+    }
+
+    /**
+     * Sahte paket modu: ilk parça (alan adının ortasına kadar) önce site adı değiştirilmiş haliyle
+     * düşük TTL'de gider, gerçeği çekirdeğin yeniden gönderiminde çıkar (native/fake.c). Kalanı normal yazılır.
+     * Bir şey ters giderse false döner, hiçbir bayt yazılmadıysa normal bölmeye düşülür.
+     */
+    private fun sendDecoy(r: Socket, out: OutputStream, plan: Dpi.Plan): Boolean {
+        val cut = plan.start + plan.len / 2
+        if (cut <= 0 || cut >= plan.data.size) return false
+        val real = plan.data.copyOfRange(0, cut)
+        val fake = Dpi.decoy(plan.data, plan.start, plan.len).copyOfRange(0, cut)
+        out.flush()
+        val n = ParcelFileDescriptor.fromSocket(r).use { pfd ->
+            Fake.send(pfd.fd, fake, real, cfg.ttl, r.inetAddress is Inet6Address)
+        }
+        if (n != cut) {
+            Log.w("GDPI", "sahte paket gönderilemedi: $n")
+            if (n > 0) throw java.io.IOException("yarım sahte paket")
+            return false
+        }
+        out.write(plan.data, cut, plan.data.size - cut)
+        return true
     }
 
     private fun setTtl(s: Socket, ttl: Int) {

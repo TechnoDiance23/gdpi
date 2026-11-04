@@ -140,7 +140,7 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest assembleRelease -Pgdpi.versionName="$ver" -Pgdpi.versionCode=$code
           mkdir -p ../dist
           cp app/build/outputs/apk/release/app-release.apk ../dist/GDPI-android.apk
-          unzip -l ../dist/GDPI-android.apk | grep -q 'lib/arm64-v8a/libhev-socks5-tunnel.so'
+          unzip -l ../dist/GDPI-android.apk | grep -q 'lib/arm64-v8a/libhev-socks5-tunnel.so' && unzip -l ../dist/GDPI-android.apk | grep -q 'lib/arm64-v8a/libgdpi-fake.so'
           (cd ../dist && sha256sum GDPI-android.apk | cut -d' ' -f1 > GDPI-android.apk.sha256)
       - uses: actions/upload-artifact@v4
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}

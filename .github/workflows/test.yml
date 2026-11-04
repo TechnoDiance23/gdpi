@@ -78,7 +78,7 @@ jobs:
         run: ./gradlew --no-daemon assembleRelease
       - name: APK içinde yerel kütüphane var mı
         run: |
-          unzip -l app/build/outputs/apk/release/app-release.apk | tee /dev/stderr | grep -q 'lib/arm64-v8a/libhev-socks5-tunnel.so'
+          unzip -l app/build/outputs/apk/release/app-release.apk | tee /dev/stderr | grep -q 'lib/arm64-v8a/libhev-socks5-tunnel.so' && unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'lib/arm64-v8a/libgdpi-fake.so'
       - uses: actions/upload-artifact@v4
         with:
           name: GDPI-android

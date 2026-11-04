@@ -124,4 +124,14 @@ class DpiTest {
     @Test fun cleanList() {
         assertEquals(listOf("a.com", "b.org"), Dpi.cleanList(" A.com \n\nb.org.\nbad_host!\na.com"))
     }
+
+    @Test
+    fun decoyKeepsLengthAndHidesName() {
+        val req = "GET / HTTP/1.1\r\nHost: discord.com\r\n\r\n".toByteArray()
+        val (start, len) = Dpi.findHttpHost(req)!!
+        val d = Dpi.decoy(req, start, len)
+        assertEquals(req.size, d.size)
+        assertEquals("aaaaaaa.com", String(d, start, len))
+        assertEquals(String(req, 0, start), String(d, 0, start))
+    }
 }
