@@ -78,6 +78,17 @@ değil, trafiğin başka bir sunucuya gitmiyor. GDPI telefonda kendi kendine kü
 paketini Windows'takine benzer şekilde alan adının ortasından bölüp yolluyor. Açık olduğu sürece bildirim
 çubuğunda duruyor, oradan da kapatabilirsin.
 
+Emülatörde çekilmiş birkaç ekran (kapalı, açık, siteler, ayarlar):
+
+<table>
+  <tr>
+    <td><img src="docs/android/kapali.png" width="200" alt="Kapalı"></td>
+    <td><img src="docs/android/acik.png" width="200" alt="Açık"></td>
+    <td><img src="docs/android/siteler.png" width="200" alt="Siteler"></td>
+    <td><img src="docs/android/ayarlar.png" width="200" alt="Ayarlar"></td>
+  </tr>
+</table>
+
 Telefonda birkaç fark var:
 
 - Root olmadan bozuk sağlama toplamlı sahte paket gönderilemiyor. O yüzden Ayarlar'da iki yöntem var: "Sadece
@@ -87,8 +98,7 @@ Telefonda birkaç fark var:
 - Aynı anda tek VPN açık olabiliyor. Başka bir VPN açarsan GDPI kapanır.
 
 APK GitHub'da otomatik derleniyor. Depoda imza anahtarı tanımlı değilse APK Android'in standart debug anahtarıyla
-imzalanıyor. Debug imzalı bir sürümden gerçek anahtarla imzalanmış bir
-sürüme geçerken eskisini kaldırıp yenisini kurman gerekiyor.
+imzalanıyor, yani şimdilik debug imzalı. Debug imzalı bir sürümden gerçek anahtarla imzalanmış bir sürüme geçerken eskisini kaldırıp yenisini kurman gerekiyor.
 
 ### Kaynaktan
 
