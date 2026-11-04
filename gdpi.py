@@ -381,6 +381,10 @@ class NFQueue:
     def close(self):
         self.closed = True
         nft_remove()
+        try:                                        # kuyruğu hemen bırak: yeniden başlatma beklemeden çalışsın
+            self.nl.send(self._msg(2, self._attr(1, self._st.pack("!BxH", 2, 0))))   # CMD_UNBIND
+        except OSError:
+            pass
         for s in (self.nl, self.raw4, self.raw6):
             try:
                 s.close()
