@@ -13,8 +13,8 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - name: Derle
@@ -41,7 +41,7 @@ jobs:
             (Get-FileHash dist/$f -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/$f.sha256
           }
         shell: pwsh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           name: GDPI-windows
@@ -49,7 +49,7 @@ jobs:
             dist/GDPI-windows.zip
             dist/GDPI-third-party-sources.zip
             dist/*.sha256
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: GDPI ${{ github.ref_name }}
@@ -76,7 +76,7 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Paketle
         run: |
           mkdir -p dist
@@ -93,7 +93,7 @@ jobs:
           python3 -m venv .venv && .venv/bin/python -m pip install -q -r requirements.txt
           set +e; HOME=$RUNNER_TEMP xvfb-run -a timeout 10 .venv/bin/python gdpi.py --no-elevate; code=$?
           test $code -eq 124 || { echo "Arayüz erken kapandı ($code)"; exit 1; }
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |

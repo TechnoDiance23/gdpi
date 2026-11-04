@@ -18,6 +18,7 @@ import math
 import os
 import queue
 import random
+import stat
 import subprocess
 import sys
 import threading
@@ -33,8 +34,53 @@ else:                                           # Linux: ~/.config/GDPI (pkexec 
     DATA_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "GDPI")
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG = os.path.join(DATA_DIR, "ayarlar.json")
+
+
+def _is_link(path):
+    """Symlink ya da (Windows) junction gibi başka yere yönlendiren bir bağlantı mı?"""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISLNK(st.st_mode) or bool(getattr(st, "st_file_attributes", 0) & 0x400)
+
+
+def _exclusive(path, binary=False, **kw):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    return os.fdopen(fd, "wb") if binary else os.fdopen(fd, "w", encoding="utf-8", **kw)
+
+
+def safe_write(path, data):
+    """Yönetici olarak çalışan GDPI'ın kullanıcı klasörüne güvenle yazması: klasör bir bağlantıysa
+    (symlink/junction) hiç yazmaz. Önce benzersiz adlı yeni bir geçici dosyaya yazar, sonra onu
+    hedefin yerine koyar; yerinde bir bağlantı varsa yalnızca bağlantı değişir, gösterdiği dosya ezilmez."""
+    d = os.path.dirname(path)
+    if _is_link(d):
+        raise PermissionError("veri klasörü bir bağlantı, yazılmadı")
+    tmp = os.path.join(d, f".{os.path.basename(path)}.{os.getpid()}.{random.getrandbits(32):08x}.tmp")
+    with _exclusive(tmp, binary=isinstance(data, bytes)) as f:
+        f.write(data)
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        os.remove(tmp)
+        raise
+
+
+def safe_open_log(path):
+    """Akan günlük dosyası için: bağlantıyı izlemeden kaldırır, dosyayı "yoksa oluştur" kipinde açar."""
+    if _is_link(os.path.dirname(path)):
+        raise PermissionError("veri klasörü bir bağlantı, yazılmadı")
+    if os.path.lexists(path):
+        os.remove(path)
+    return _exclusive(path, buffering=1)
+
+
 if sys.stderr is None or sys.stdout is None:    # pencereli exe: konsol yok, çıktıyı dosyaya yönlendir
-    sys.stdout = sys.stderr = open(os.path.join(DATA_DIR, "cikti.log"), "w", encoding="utf-8", buffering=1)
+    try:
+        sys.stdout = sys.stderr = safe_open_log(os.path.join(DATA_DIR, "cikti.log"))
+    except OSError:
+        sys.stdout = sys.stderr = open(os.devnull, "w")
 
 DEFAULTS = {
     "mode": "hepsi",            # "hepsi": dokunma listesi hariç hepsi | "liste": sadece hedef listesi
@@ -602,8 +648,7 @@ def load_cfg():
 
 
 def save_cfg(cfg):
-    with open(CONFIG, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    safe_write(CONFIG, json.dumps(cfg, ensure_ascii=False, indent=2))
 
 
 # ----------------------------------------------------------------- simge + otomatik başlatma
@@ -783,7 +828,10 @@ class App(ctk.CTk):
         self.logq = queue.Queue()
         try:                                         # başlık ve görev çubuğu simgesi: kalkan
             ico = os.path.join(os.path.dirname(CONFIG), "gdpi.ico")
-            shield_image(True, 256).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
+            import io
+            buf = io.BytesIO()
+            shield_image(True, 256).save(buf, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (256, 256)])
+            safe_write(ico, buf.getvalue())
             if not WINDOWS:
                 raise OSError                       # Linux'ta .ico başlık simgesi desteklenmez
             self.after(300, lambda: self.iconbitmap(ico))   # CTk kendi simgesini 200 ms'de koyuyor
@@ -1254,8 +1302,7 @@ def selftest():
         say(f"-- MOTOR BAŞLAMADI: {ex}")
     finally:
         e.stop()
-    with open(os.path.join(DATA_DIR, "selftest.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(out) + "\n")
+    safe_write(os.path.join(DATA_DIR, "selftest.txt"), "\n".join(out) + "\n")
 
 
 def linux_elevate():
@@ -1288,6 +1335,5 @@ if __name__ == "__main__":
         raise
     except BaseException:                       # pencereli exe hatayı gösteremez: dosyaya yaz
         import traceback
-        with open(os.path.join(DATA_DIR, "hata.txt"), "w", encoding="utf-8") as f:
-            f.write(traceback.format_exc())
+        safe_write(os.path.join(DATA_DIR, "hata.txt"), traceback.format_exc())
         raise

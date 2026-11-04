@@ -250,9 +250,52 @@ impl Config {
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        std::fs::create_dir_all(Self::data_dir())?;
-        std::fs::write(Self::path(), self.to_json())
+        safe_write(&Self::path(), self.to_json().as_bytes())
     }
+}
+
+/// Yönetici olarak çalışan GDPI'ın kullanıcı klasörüne güvenle yazması: klasör bir bağlantıysa
+/// (symlink/junction) hiç yazmaz. Önce benzersiz adlı yeni bir geçici dosyaya ("yoksa oluştur"
+/// kipinde) yazar, sonra onu hedefin yerine koyar; hedefte bir bağlantı varsa yalnızca bağlantı
+/// değişir, gösterdiği dosya ezilmez. (Python `safe_write` ile aynı.)
+pub fn safe_write(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind, Write};
+    let dir = path.parent().ok_or_else(|| Error::new(ErrorKind::InvalidInput, "klasör yok"))?;
+    std::fs::create_dir_all(dir)?;
+    if is_link(dir) {
+        return Err(Error::new(ErrorKind::PermissionDenied, "veri klasörü bir bağlantı, yazılmadı"));
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("dosya");
+    let tmp = dir.join(format!(".{name}.{}.{nanos:08x}.tmp", std::process::id()));
+    {
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+        f.write_all(data)?;
+    }
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
+}
+
+fn is_link(p: &std::path::Path) -> bool {
+    match std::fs::symlink_metadata(p) {
+        Ok(m) => m.file_type().is_symlink() || is_reparse_point(&m),
+        Err(_) => false,
+    }
+}
+
+#[cfg(windows)]
+fn is_reparse_point(m: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    m.file_attributes() & 0x400 != 0 // FILE_ATTRIBUTE_REPARSE_POINT (junction dahil)
+}
+
+#[cfg(not(windows))]
+fn is_reparse_point(_: &std::fs::Metadata) -> bool {
+    false
 }
 
 #[cfg(test)]
@@ -285,5 +328,52 @@ mod tests {
     fn roundtrip() {
         let c = Config::default();
         assert_eq!(Config::from_json(&c.to_json()), c);
+    }
+}
+
+#[cfg(test)]
+mod safe_write_tests {
+    use super::safe_write;
+
+    #[test]
+    fn overwrites_and_leaves_no_temp() {
+        let d = std::env::temp_dir().join(format!("gdpi-sw-{}", std::process::id()));
+        let p = d.join("a.json");
+        for i in 0..5 {
+            safe_write(&p, format!("{i}").as_bytes()).unwrap();
+        }
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "4");
+        let left: Vec<_> = std::fs::read_dir(&d).unwrap().filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+        assert!(left.is_empty());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_target_untouched() {
+        let d = std::env::temp_dir().join(format!("gdpi-sl-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        let target = d.join("onemli.txt");
+        std::fs::write(&target, "DOKUNMA").unwrap();
+        let link = d.join("ayarlar.json");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        safe_write(&link, b"yeni").unwrap();
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "DOKUNMA");
+        assert!(!std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn linked_dir_refused() {
+        let d = std::env::temp_dir().join(format!("gdpi-ld-{}", std::process::id()));
+        let real = d.join("gercek");
+        std::fs::create_dir_all(&real).unwrap();
+        let ld = d.join("bag");
+        std::os::unix::fs::symlink(&real, &ld).unwrap();
+        assert!(safe_write(&ld.join("a.json"), b"x").is_err());
+        assert_eq!(std::fs::read_dir(&real).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

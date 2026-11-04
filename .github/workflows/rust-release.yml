@@ -14,8 +14,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Derle ve paketle
         shell: pwsh
         run: |
@@ -29,11 +29,11 @@ jobs:
           Copy-Item licenses/* "$d/licenses" -Recurse
           Compress-Archive -Path $d -DestinationPath dist/GDPI-rust-windows.zip -Force
           (Get-FileHash dist/GDPI-rust-windows.zip -Algorithm SHA256).Hash | Out-File -Encoding ascii dist/GDPI-rust-windows.zip.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: GDPI-rust-windows
           path: dist/GDPI-rust-windows.zip*
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           prerelease: true
@@ -42,8 +42,8 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Derle ve paketle
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libxkbcommon-x11-0 libgl1-mesa-dri libegl1
@@ -53,11 +53,11 @@ jobs:
           cp -r LICENSE THIRD_PARTY.md licenses dist/GDPI/
           tar -C dist -czf dist/GDPI-rust-linux.tar.gz GDPI
           (cd dist && sha256sum GDPI-rust-linux.tar.gz | cut -d' ' -f1 > GDPI-rust-linux.tar.gz.sha256)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: GDPI-rust-linux
           path: dist/GDPI-rust-linux.tar.gz*
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           prerelease: true

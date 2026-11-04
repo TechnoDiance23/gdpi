@@ -17,9 +17,7 @@ fn install_panic_hook() {
     let prev = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let bt = std::backtrace::Backtrace::force_capture();
-        let dir = Config::data_dir();
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(dir.join("hata.txt"), format!("{info}\n\n{bt}\n"));
+        let _ = gdpi_core::config::safe_write(&Config::data_dir().join("hata.txt"), format!("{info}\n\n{bt}\n").as_bytes());
         prev(info);
     }));
 }
@@ -76,9 +74,7 @@ fn main() {
         return;
     }
     if let Err(e) = ui::run(has("--tray")) {
-        let dir = Config::data_dir();
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(dir.join("hata.txt"), format!("{e}\n"));
+        let _ = gdpi_core::config::safe_write(&Config::data_dir().join("hata.txt"), format!("{e}\n").as_bytes());
         eprintln!("{e}");
         std::process::exit(1);
     }

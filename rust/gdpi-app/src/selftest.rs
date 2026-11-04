@@ -45,10 +45,8 @@ pub fn run() -> std::io::Result<std::path::PathBuf> {
         }
         Err(ex) => say(format!("-- MOTOR BAŞLAMADI: {ex}")),
     }
-    let dir = Config::data_dir();
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join("selftest.txt");
+    let path = Config::data_dir().join("selftest.txt");
     let text = out.lock().unwrap().join("\n") + "\n";
-    std::fs::write(&path, text)?;
+    gdpi_core::config::safe_write(&path, text.as_bytes())?;
     Ok(path)
 }
