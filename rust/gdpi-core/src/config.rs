@@ -45,6 +45,8 @@ pub struct Config {
     pub mode: Mode,
     pub fake: Fake,
     pub ttl: u8,
+    /// 1: eski varsayılan sahte paket "checksum" idi (Türk Telekom'da işe yaramıyor)
+    pub cfg_version: u32,
     pub reverse: bool,
     pub block_quic: bool,
     pub dns_redirect: bool,
@@ -52,6 +54,36 @@ pub struct Config {
     pub dns_port: u16,
     pub targets: Vec<String>,
     pub bypass: Vec<String>,
+    /// Yalnız testler için (Python'da cfg.get("split")): kaydedilmez
+    #[serde(skip)]
+    pub split: Split,
+    /// Yalnız testler için (Python'da cfg.get("fake_seq")): sahte paket seq-10000 ile
+    #[serde(skip)]
+    pub fake_seq: bool,
+}
+
+/// TLS bölme noktası (Python `split` anahtarı).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Split {
+    /// 2 + alan adının ortası
+    #[default]
+    Sni,
+    /// yalnız alan adının ortası
+    Orta,
+    One,
+    Two,
+}
+
+impl Split {
+    pub fn parse(s: &str) -> Option<Split> {
+        Some(match s {
+            "sni" => Split::Sni,
+            "orta" => Split::Orta,
+            "1" => Split::One,
+            "2" => Split::Two,
+            _ => return None,
+        })
+    }
 }
 
 pub const DEFAULT_TARGETS: &[&str] = &[
@@ -73,8 +105,8 @@ pub const DNS_SERVERS: &[&str] = &["77.88.8.8", "77.88.8.1", "1.1.1.1", "1.0.0.1
 
 /// Hızlı profiller: (ad, mod, sahte paket, ters, QUIC engeli)
 pub const PRESETS: &[(&str, Mode, Fake, bool, bool)] = &[
-    ("Hafif", Mode::Liste, Fake::Kapali, false, true),
-    ("Dengeli", Mode::Hepsi, Fake::Checksum, false, true),
+    ("Hafif", Mode::Liste, Fake::Ttl, false, true),
+    ("Dengeli", Mode::Hepsi, Fake::Ttl, false, true),
     ("Agresif", Mode::Hepsi, Fake::Ttl, true, true),
 ];
 
@@ -82,8 +114,9 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             mode: Mode::Hepsi,
-            fake: Fake::Checksum,
-            ttl: 4,
+            fake: Fake::Ttl,
+            ttl: 3,
+            cfg_version: 2,
             reverse: false,
             block_quic: true,
             dns_redirect: false,
@@ -91,6 +124,8 @@ impl Default for Config {
             dns_port: 1253,
             targets: DEFAULT_TARGETS.iter().map(|s| s.to_string()).collect(),
             bypass: DEFAULT_BYPASS.iter().map(|s| s.to_string()).collect(),
+            split: Split::Sni,
+            fake_seq: false,
         }
     }
 }
@@ -198,8 +233,22 @@ impl Config {
         Self::data_dir().join("ayarlar.json")
     }
 
+    /// Python `load_cfg`: sürümü 2'den küçük (ya da hiç olmayan) dosyada "checksum" -> "ttl" / 3.
+    pub fn from_file_json(text: &str) -> Config {
+        let Ok(raw) = serde_json::from_str::<Value>(text) else { return Config::default() };
+        let mut c = Config::sanitize(&raw);
+        let ver = raw.get("cfg_version").and_then(as_int).unwrap_or(1);
+        if !raw.is_object() || ver < 2 {
+            if c.fake == Fake::Checksum {
+                c.fake = Fake::Ttl;
+                c.ttl = 3;
+            }
+        }
+        c
+    }
+
     pub fn load() -> Config {
-        std::fs::read_to_string(Self::path()).map(|t| Config::from_json(&t)).unwrap_or_default()
+        std::fs::read_to_string(Self::path()).map(|t| Config::from_file_json(&t)).unwrap_or_default()
     }
 
     pub fn save(&self) -> std::io::Result<()> {
@@ -225,7 +274,7 @@ mod tests {
     fn sanitize_rejects() {
         let c = Config::from_json(r#"{"mode":"x","ttl":99,"dns_addr":"6.6.6.6","bypass":["EVIL.com"],"fake":"ttl","dns_port":true}"#);
         assert_eq!(c.mode, Mode::Hepsi);
-        assert_eq!(c.ttl, 4);
+        assert_eq!(c.ttl, 3);
         assert_eq!(c.dns_addr, "77.88.8.8");
         assert_eq!(c.bypass, Config::default().bypass);
         assert_eq!(c.fake, Fake::Ttl);

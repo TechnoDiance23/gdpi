@@ -166,7 +166,8 @@ def udp(sport, dport, payload=b"\x12\x34\x01\x00"):
     return struct.pack("!HHHH", sport, dport, 8 + len(payload), 0) + payload
 
 
-eng_cfgs = [{}, {"fake": "ttl", "ttl": 3}, {"fake": "kapali"}, {"reverse": True}, {"fake": "ttl", "reverse": True},
+eng_cfgs = [{}, {"fake": "checksum"}, {"fake": "ttl", "ttl": 7}, {"fake": "kapali"}, {"split": "orta"}, {"split": "1"},
+            {"split": "2", "fake_seq": True}, {"fake_seq": True, "fake": "checksum"}, {"reverse": True}, {"fake": "ttl", "reverse": True},
             {"mode": "liste"}, {"mode": "liste", "targets": ["discord.com"], "fake": "kapali", "reverse": True},
             {"bypass": []}, {"dns_redirect": True}, {"dns_redirect": True, "dns_addr": "1.1.1.1", "dns_port": 53}]
 
@@ -194,7 +195,9 @@ engine = []
 for c in eng_cfgs:
     for seqname, seq in (("tcp", pkts), ("udp", dns_seq)):
         logs = []
-        e = g["Engine"](g["sanitize_cfg"](c), logs.append)
+        ecfg = g["sanitize_cfg"](c)
+        ecfg.update({k: c[k] for k in ("split", "fake_seq") if k in c})     # yalnız testlerin kullandığı anahtarlar
+        e = g["Engine"](ecfg, logs.append)
         wd = FakeWD()
         steps = []
         for raw, out in seq:
@@ -206,7 +209,18 @@ for c in eng_cfgs:
             steps.append({"raw": raw.hex(), "out": out, "sent": wd.sent})
         engine.append({"cfg": c, "steps": steps, "split": e.n_split, "skip": e.n_skip, "logs": logs})
 
-corpus = {"parse": parse, "domains": domains, "configs": configs, "rules": rules, "engine": engine,
+# ---------------------------------------------------------------- load_cfg göçü (cfg_version)
+import tempfile
+migrate = []
+with tempfile.TemporaryDirectory() as td:
+    g["CONFIG"] = str(Path(td) / "ayarlar.json")
+    for text in ['{}', '{"fake": "checksum"}', '{"fake": "checksum", "ttl": 8}', '{"fake": "checksum", "cfg_version": 2}',
+                 '{"fake": "kapali"}', '{"fake": "ttl", "ttl": 9}', '[]', 'bozuk', '{"cfg_version": 1, "fake": "checksum"}',
+                 '{"cfg_version": 3, "fake": "checksum", "ttl": 5}', '{"cfg_version": true, "fake": "checksum"}']:
+        Path(g["CONFIG"]).write_text(text, encoding="utf-8")
+        migrate.append({"in": text, "out": json.loads(json.dumps(g["load_cfg"]()))})
+
+corpus = {"migrate": migrate, "parse": parse, "domains": domains, "configs": configs, "rules": rules, "engine": engine,
           "python": sys.version.split()[0], "openssl": ssl.OPENSSL_VERSION}
 out = Path(__file__).with_name("corpus.json")
 out.write_text(json.dumps(corpus, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")

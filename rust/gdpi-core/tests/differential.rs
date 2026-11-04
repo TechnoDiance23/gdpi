@@ -76,12 +76,15 @@ fn engine_matches_python() {
     let Some(c) = corpus() else { return };
     let mut sent_total = 0;
     for sc in c["engine"].as_array().unwrap() {
-        let cfg = Config::sanitize(&sc["cfg"]);
+        let mut cfg = Config::sanitize(&sc["cfg"]);
+        if let Some(sp) = sc["cfg"]["split"].as_str() {
+            cfg.split = Split::parse(sp).unwrap();
+        }
+        cfg.fake_seq = sc["cfg"]["fake_seq"].as_bool().unwrap_or(false);
         let logs = Arc::new(Mutex::new(Vec::<String>::new()));
         let l2 = logs.clone();
         let stats = Arc::new(Stats::default());
         let mut e = Engine::new(cfg, stats.clone(), Arc::new(move |m: &str| l2.lock().unwrap().push(m.to_string())));
-        e.set_junk(|b| b.fill(0));
         for st in sc["steps"].as_array().unwrap() {
             let raw = hex::decode(st["raw"].as_str().unwrap()).unwrap();
             let got: Vec<(String, bool)> = match e.process(&raw, st["out"].as_bool().unwrap()) {
@@ -104,4 +107,13 @@ fn engine_matches_python() {
         assert_eq!(*logs.lock().unwrap(), want_logs);
     }
     assert!(sent_total > 500);
+}
+
+#[test]
+fn load_migration_matches_python() {
+    let Some(c) = corpus() else { return };
+    for case in c["migrate"].as_array().unwrap() {
+        let got = serde_json::to_value(Config::from_file_json(case["in"].as_str().unwrap())).unwrap();
+        assert_eq!(got, case["out"], "dosya {}", case["in"]);
+    }
 }

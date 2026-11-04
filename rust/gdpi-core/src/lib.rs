@@ -9,7 +9,7 @@ pub mod engine;
 pub mod parse;
 pub mod pkt;
 
-pub use config::{Config, Fake, Mode, DEFAULT_BYPASS, DEFAULT_TARGETS, DNS_SERVERS, PRESETS};
+pub use config::{Config, Fake, Mode, Split, DEFAULT_BYPASS, DEFAULT_TARGETS, DNS_SERVERS, PRESETS};
 pub use engine::{filter_str, nft_rules, Engine, LogFn, Out, Stats, Verdict, NFQ_MARK, NFQ_NUM, NFT_TABLE};
 pub use parse::{domain_in, find_http_host, find_sni, host_text};
 pub use pkt::Pkt;

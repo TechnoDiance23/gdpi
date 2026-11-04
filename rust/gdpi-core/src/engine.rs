@@ -1,7 +1,7 @@
 //! Motorun platformdan bağımsız kısmı (Python `Engine.handle_tcp/handle_udp/send_split`).
 //! WinDivert ve NFQUEUE yalnızca paketi alıp buradaki kararı uygular.
 use crate::checksum::fix_checksums;
-use crate::config::{Config, Fake, Mode};
+use crate::config::{Config, Fake, Mode, Split};
 use crate::parse::{domain_in, find_http_host, find_sni, host_text};
 use crate::pkt::Pkt;
 use std::collections::{HashMap, HashSet};
@@ -14,7 +14,6 @@ pub const NFQ_MARK: u32 = 0x4744_5049;
 pub const NFT_TABLE: &str = "gdpi";
 
 pub type LogFn = Arc<dyn Fn(&str) + Send + Sync>;
-type JunkFn = Box<dyn FnMut(&mut [u8]) + Send>;
 
 /// Arayüzde gösterilen sayaçlar.
 #[derive(Debug, Default)]
@@ -60,7 +59,6 @@ pub struct Engine {
     /// yerel port -> asıl DNS sunucusu
     dns_map: HashMap<u16, [u8; 4]>,
     dns_ip: [u8; 4],
-    junk: JunkFn,
 }
 
 impl Engine {
@@ -76,13 +74,23 @@ impl Engine {
             seen: HashSet::new(),
             dns_map: HashMap::new(),
             dns_ip,
-            junk: Box::new(|b: &mut [u8]| b.iter_mut().for_each(|x| *x = fastrand::u8(..))),
         }
     }
 
-    /// Testler için: sahte paketin rastgele içeriğini belirler.
-    pub fn set_junk(&mut self, f: impl FnMut(&mut [u8]) + Send + 'static) {
-        self.junk = Box::new(f);
+    /// Sahte paket: gerçek isteğin kopyası, ama site adı aynı uzunlukta zararsız bir adla değiştirilmiş.
+    /// DPI bunu geçerli bir TLS/HTTP isteği olarak okuyup bağlantıyı "zararsız site" diye işaretler.
+    pub fn decoy(data: &[u8], (start, ln): (usize, usize)) -> Vec<u8> {
+        let name: Vec<u8> = if ln >= 5 {
+            let mut n = vec![b'a'; ln - 4];
+            n.extend_from_slice(b".com");
+            n
+        } else {
+            vec![b'x'; ln]
+        };
+        let mut out = data[..start].to_vec();
+        out.extend_from_slice(&name);
+        out.extend_from_slice(&data[start + ln..]);
+        out
     }
 
     pub fn should_touch(&self, host: &str) -> bool {
@@ -150,13 +158,18 @@ impl Engine {
             data[hpos + 2..hpos + 7].copy_from_slice(b"hoSt:");
             vec![hpos + 4, start + ln / 2]
         } else {
-            vec![2, start + ln / 2] // kayıt başlığı + alan adının ortası
+            match self.cfg.split {
+                Split::Sni => vec![2, start + ln / 2], // kayıt başlığı + alan adının ortası
+                Split::Orta => vec![start + ln / 2],
+                Split::One => vec![1],
+                Split::Two => vec![2],
+            }
         };
-        Some(Verdict::Send(self.split(p, &data, cuts)))
+        Some(Verdict::Send(self.split(p, &data, cuts, (start, ln))))
     }
 
     /// Python `send_split`: veriyi kesim noktalarından böler, önce sahte paketi ekler.
-    pub fn split(&mut self, p: &Pkt, data: &[u8], cuts: Vec<usize>) -> Vec<Out> {
+    pub fn split(&mut self, p: &Pkt, data: &[u8], cuts: Vec<usize>, sni: (usize, usize)) -> Vec<Out> {
         let mut cuts: Vec<usize> = cuts.into_iter().filter(|&c| 0 < c && c < data.len()).collect();
         cuts.sort_unstable();
         cuts.dedup();
@@ -167,10 +180,11 @@ impl Engine {
         let seq = p.seq();
         let mut out = Vec::with_capacity(parts.len() + 1);
         if self.cfg.fake != Fake::Kapali {
-            let mut junk = vec![0u8; parts[0].1.len()];
-            (self.junk)(&mut junk);
+            let body = Self::decoy(data, sni);
+            // yanlış sıra no: sunucu atar
+            let fseq = if self.cfg.fake_seq { seq.wrapping_sub(10000) } else { seq };
             let ttl = (self.cfg.fake == Fake::Ttl).then_some(self.cfg.ttl);
-            let mut f = p.segment(&junk, seq, ttl);
+            let mut f = p.segment(&body, fseq, ttl);
             fix_checksums(&mut f);
             if self.cfg.fake == Fake::Checksum {
                 // TCP checksum alanı: bozuk -> sunucu kesin reddeder

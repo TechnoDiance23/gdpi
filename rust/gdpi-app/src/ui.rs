@@ -690,16 +690,16 @@ impl App {
                     }
                 });
                 let fake_sel = Some(match c.draft.fake {
-                    Fake::Checksum => 0,
-                    Fake::Ttl => 1,
+                    Fake::Ttl => 0,
+                    Fake::Checksum => 1,
                     Fake::Kapali => 2,
                 });
-                self.setting(ui, "Sahte paket", "Bozuk checksum en güvenlisi, yakındaki sunuculara zarar vermez", |ui| {
-                    if let Some(i) = segmented(ui, &["Bozuk checksum", "Düşük TTL", "Kapalı"], fake_sel) {
-                        c.draft.fake = [Fake::Checksum, Fake::Ttl, Fake::Kapali][i];
+                self.setting(ui, "Sahte paket", "Düşük TTL çoğu operatörde işe yarıyor. Bozuk checksum bazılarında hiç çalışmıyor", |ui| {
+                    if let Some(i) = segmented(ui, &["Düşük TTL", "Bozuk checksum", "Kapalı"], fake_sel) {
+                        c.draft.fake = [Fake::Ttl, Fake::Checksum, Fake::Kapali][i];
                     }
                 });
-                self.setting(ui, "TTL değeri", "Sadece Düşük TTL seçiliyken işe yarar. Çoğu zaman 3 ile 6 arası iyi", |ui| {
+                self.setting(ui, "TTL değeri", "Sadece Düşük TTL seçiliyken işe yarar. Çoğu zaman 3 yeterli, olmazsa 4-6 dene", |ui| {
                     egui::ComboBox::from_id_salt("ttl")
                         .width(80.0)
                         .selected_text(txt(c.draft.ttl.to_string(), 13.0, TEXT))
