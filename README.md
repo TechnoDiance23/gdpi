@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>⬇️ GDPI'ı indir</b></a>
+  <a href="../../releases/latest"><b>⬇️ GDPI'ı indir</b></a> · Windows (GDPI-windows.zip) · Linux (GDPI-linux.tar.gz)
 </p>
 
 ---
@@ -56,13 +56,20 @@ GDPI.bat
 
 Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\GDPI\GDPI.exe`
 
-### 4) Linux (kaynaktan)
-```
-sudo apt install python3-venv python3-tk nftables      # Fedora: sudo dnf install python3-tkinter nftables
-git clone https://github.com/TechnoDiance23/gdpi.git
-cd gdpi
-./gdpi.sh
-```
+### 4) Linux
+1. Gerekenleri kur (bir kere):
+   ```
+   sudo apt install python3-venv python3-tk nftables      # Fedora: sudo dnf install python3-tkinter nftables
+   ```
+2. [Releases](../../releases/latest) sayfasından **GDPI-linux.tar.gz**'i indir, aç ve çalıştır:
+   ```
+   tar -xzf GDPI-linux.tar.gz
+   cd GDPI
+   ./gdpi.sh
+   ```
+
+Kaynaktan da olur: `git clone https://github.com/TechnoDiance23/gdpi.git && cd gdpi && ./gdpi.sh`
+
 `gdpi.sh` ilk açılışta `.venv` kurar, sonra GDPI'ı yönetici (pkexec/sudo) izniyle açar. Arayüz ve ayarlar
 Windows'takiyle aynıdır; ayarlar `~/.config/GDPI/` altında durur. Linux'ta WinDivert yerine çekirdeğin NFQUEUE
 özelliği ve nftables kullanılır (ek bir sürücü ya da kütüphane gerekmez). GDPI kapanınca kurallar silinir; çökerse
