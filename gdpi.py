@@ -487,6 +487,10 @@ class Engine:
         self.dns_map = {}                        # yerel port -> asıl DNS sunucusu (4 bayt)
         self.n_split = 0                         # bölünen bağlantı
         self.n_skip = 0                          # dokunulmayan (listeden) bağlantı
+        # İki pakete bölünmüş ClientHello'lar (Chrome/Discord ~1,8 KB): site adı ikinci pakete düşebilir,
+        # bu yüzden ilk parça bekletilir, ikincisiyle birleştirilip öyle karar verilir.
+        self.held = {}
+        self.held_lock = threading.Lock()
 
     def should_touch(self, host):
         if domain_in(host, self.cfg["bypass"]):
@@ -510,6 +514,30 @@ class Engine:
         self.wd = WinDivert(self.filter_str()) if WINDOWS else NFQueue(self.cfg)
         self.thread = threading.Thread(target=self.loop, daemon=True)
         self.thread.start()
+        threading.Thread(target=self.flush_loop, args=(self.wd,), daemon=True).start()
+
+    HOLD_SECONDS = 0.4
+
+    def flush_loop(self, wd):
+        """İkinci parçası gelmeyen bekletilmiş paketleri olduğu gibi gönderir: bağlantı asla takılmaz."""
+        while self.wd is wd:
+            time.sleep(0.1)
+            now = time.monotonic()
+            with self.held_lock:
+                old = [k for k, h in self.held.items() if now - h["t"] > self.HOLD_SECONDS]
+                stale = [self.held.pop(k) for k in old]
+            for h in stale:
+                self.release(wd, h)
+
+    @staticmethod
+    def release(wd, h):
+        for raw, addr in h["pkts"]:
+            wd.send(bytearray(raw), addr)        # kopya: Linux'ta aslının kararı çoktan verildi
+
+    @staticmethod
+    def flow_key(p):
+        r = p.raw
+        return (bytes(r[8:40]) if p.v6 else bytes(r[12:20]), p.sport, p.dport)
 
     def stop(self):
         wd, self.wd = self.wd, None
@@ -559,6 +587,35 @@ class Engine:
     # --- TCP: SNI / Host bölme
     def handle_tcp(self, wd, p, addr):
         payload = p.payload
+        key = self.flow_key(p)
+        with self.held_lock:
+            h = self.held.get(key)
+            if h is not None:
+                if p.seq == h["next"]:                       # beklenen devam parçası
+                    h["data"] += payload
+                    h["next"] = (h["next"] + len(payload)) & 0xFFFFFFFF
+                    h["pkts"].append((bytes(p.raw), addr))
+                    if len(h["data"]) < h["need"]:
+                        return True
+                    del self.held[key]
+                elif p.seq == h["first"].seq:                # ilk parçanın tekrarı: elimizde zaten var
+                    return True
+                else:                                        # sıra bozuk: bekletmeyi bırak
+                    del self.held[key]
+                    self.release(wd, h)
+                    return False
+        if h is not None:
+            self.handle_whole(wd, h)
+            return True
+        if (p.dport == 443 and len(payload) >= 6 and payload[0] == 0x16 and payload[5] == 1
+                and find_sni(payload) is None):
+            need = int.from_bytes(payload[3:5], "big") + 5
+            if len(payload) < need <= 16389:                 # site adı sonraki pakette olabilir
+                with self.held_lock:
+                    self.held[key] = {"first": p, "addr": addr, "data": bytes(payload), "need": need,
+                                      "next": (p.seq + len(payload)) & 0xFFFFFFFF,
+                                      "pkts": [(bytes(p.raw), addr)], "t": time.monotonic()}
+                return True
         loc = find_sni(payload) if p.dport == 443 else find_http_host(payload)
         if not loc:
             return False
@@ -582,6 +639,24 @@ class Engine:
         self.send_split(wd, p, addr, payload, cuts, (start, ln))
         return True
 
+    def handle_whole(self, wd, h):
+        """Parçaları birleştirilmiş ClientHello: site adına göre karar ver, gerekirse böl ve gönder."""
+        data, p = h["data"], h["first"]
+        loc = find_sni(data[:h["need"]])
+        host = data[loc[0]:loc[0] + loc[1]].decode("ascii", "ignore") if loc else ""
+        if not loc or not self.should_touch(host):
+            self.n_skip += 1 if loc else 0
+            self.release(wd, h)
+            return
+        self.n_split += 1
+        if host not in self.seen:
+            self.seen.add(host)
+            self.log(f"→ {host}")
+        start, ln = loc
+        cuts = {"sni": [2, start + ln // 2], "orta": [start + ln // 2],
+                "1": [1], "2": [2]}.get(self.cfg.get("split", "sni"), [2, start + ln // 2])
+        self.send_split(wd, p, h["addr"], data, cuts, loc, mss=len(p.payload))
+
     @staticmethod
     def decoy(data, sni):
         """Sahte paket: gerçek isteğin kopyası, ama site adı zararsız bir adla değiştirilmiş.
@@ -590,24 +665,35 @@ class Engine:
         name = (b"a" * max(ln - 4, 1) + b".com")[:ln] if ln >= 5 else b"x" * ln
         return data[:start] + name + data[start + ln:]
 
-    def send_split(self, wd, p, addr, data, cuts, sni):
-        cuts = sorted(c for c in set(cuts) if 0 < c < len(data))
-        b = [0] + cuts + [len(data)]
-        parts = [(b[k], data[b[k]:b[k + 1]]) for k in range(len(b) - 1)]
+    @staticmethod
+    def chunks(data, cuts, mss=None):
+        """data'yı cuts noktalarından böler; mss verilirse hiçbir parça ondan büyük olmaz."""
+        b = [0] + sorted(set(c for c in cuts if 0 < c < len(data))) + [len(data)]
+        out = []
+        for k in range(len(b) - 1):
+            lo, hi = b[k], b[k + 1]
+            while mss and hi - lo > mss:
+                out.append((lo, data[lo:lo + mss]))
+                lo += mss
+            out.append((lo, data[lo:hi]))
+        return out
+
+    def send_split(self, wd, p, addr, data, cuts, sni, mss=None):
+        parts = self.chunks(data, cuts, mss)
         fake = self.cfg["fake"]
         if fake != "kapali":
-            body = self.decoy(data, sni)
-            seq = p.seq - 10000 if self.cfg.get("fake_seq") else p.seq     # yanlış sıra no: sunucu atar
-            f = p.segment(body, seq, ttl=int(self.cfg["ttl"]) if fake == "ttl" else None)
-            wd.checksums(f, addr)
-            if fake == "checksum":
-                c = p.l4 + 16                    # TCP checksum alanı: bozuk -> sunucu kesin reddeder
-                f[c:c + 2] = (int.from_bytes(f[c:c + 2], "big") ^ 0xFFFF).to_bytes(2, "big")
-            wd.send(f, addr, fix_checksums=False)
+            base = p.seq - 10000 if self.cfg.get("fake_seq") else p.seq     # yanlış sıra no: sunucu atar
+            for off, piece in self.chunks(self.decoy(data, sni), [], mss):
+                f = p.segment(piece, base + off, ttl=int(self.cfg["ttl"]) if fake == "ttl" else None)
+                wd.checksums(f, addr)
+                if fake == "checksum":
+                    c = p.l4 + 16                # TCP checksum alanı: bozuk -> sunucu kesin reddeder
+                    f[c:c + 2] = (int.from_bytes(f[c:c + 2], "big") ^ 0xFFFF).to_bytes(2, "big")
+                wd.send(f, addr, fix_checksums=False)
         if self.cfg["reverse"]:
             parts.reverse()
         for off, chunk in parts:
-            wd.send(p.segment(chunk, p.seq + off), addr)
+            wd.send(p.segment(chunk, (p.seq + off) & 0xFFFFFFFF), addr)
 
 
 # ----------------------------------------------------------------- ayarlar
