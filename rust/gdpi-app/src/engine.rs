@@ -17,4 +17,4 @@ pub fn is_admin() -> bool {
 }
 
 /// Kullanıcıya "yönetici izni yok" uyarısında gösterilen başlatıcı.
-pub const LAUNCHER: &str = if cfg!(windows) { "GDPI.bat" } else { "./gdpi.sh" };
+pub const LAUNCHER: &str = if cfg!(windows) { "GDPI.exe (yönetici olarak)" } else { "sudo" };

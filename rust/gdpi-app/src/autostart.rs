@@ -31,7 +31,7 @@ pub fn autostart_enabled() -> bool {
 #[cfg(not(windows))]
 pub fn set_autostart(on: bool) -> Option<String> {
     if on {
-        Some("Linux'ta otomatik başlatma yok; gdpi.sh'i oturum başlangıcına ekleyebilirsiniz.".into())
+        Some("Linux'ta otomatik başlatma yok; gdpi'yi oturum başlangıcına ekleyebilirsiniz.".into())
     } else {
         None
     }
