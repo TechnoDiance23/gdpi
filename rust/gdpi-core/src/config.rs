@@ -238,11 +238,9 @@ impl Config {
         let Ok(raw) = serde_json::from_str::<Value>(text) else { return Config::default() };
         let mut c = Config::sanitize(&raw);
         let ver = raw.get("cfg_version").and_then(as_int).unwrap_or(1);
-        if !raw.is_object() || ver < 2 {
-            if c.fake == Fake::Checksum {
-                c.fake = Fake::Ttl;
-                c.ttl = 3;
-            }
+        if (!raw.is_object() || ver < 2) && c.fake == Fake::Checksum {
+            c.fake = Fake::Ttl;
+            c.ttl = 3;
         }
         c
     }
