@@ -96,3 +96,19 @@ jobs:
         with:
           name: android-ekran
           path: android/build/shots/*.png
+      - name: Ekran görüntülerini küçült ve loga yaz
+        if: always()
+        run: |
+          pip install -q pillow
+          python3 - <<'PY'
+          import base64, glob, io, os
+          from PIL import Image
+          for f in sorted(glob.glob('android/build/shots/*.png')):
+              im = Image.open(f).convert('RGB')
+              im = im.resize((360, im.height * 360 // im.width), Image.LANCZOS)
+              b = io.BytesIO(); im.save(b, 'PNG', optimize=True)
+              print('SHOT', os.path.basename(f))
+              d = base64.b64encode(b.getvalue()).decode()
+              for i in range(0, len(d), 4000): print('B64', d[i:i+4000])
+              print('END')
+          PY
