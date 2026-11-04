@@ -5,9 +5,9 @@ Kişisel, arayüzlü DPI aşma aracı (WinDivert 2.2).
 GoodbyeDPI'dan farkı:
   * Siteye göre çalışır: bankalar, e-Devlet, Resmî Gazete, Grok gibi siteler "dokunma" listesindedir,
     paketlerine hiç müdahale edilmez.
-  * Sahte paket varsayılan olarak "bozuk checksum" ile gider. Sunucu ne kadar yakın olursa olsun
-    (Türkiye'deki siteler 3-5 hop ötede) sahte paketi kabul etmez. Düşük TTL'de yakın sunucular
-    sahte paketi alıp bağlantıyı bozuyordu.
+  * Sahte paket, gerçek isteğin site adı zararsız bir adla değiştirilmiş kopyasıdır ve TTL 3 ile
+    gider: operatörün DPI'ına ulaşır, sunucuya ulaşmaz. Türk Telekom'da test edildi; "bozuk
+    checksum" yöntemi orada hiç işe yaramıyor çünkü DPI sağlama toplamını kontrol ediyor.
   * İsteğe bağlı DNS yönlendirme (operatörün DNS zorlamasını aşar).
 
 Kaynaktan: pip install -r requirements.txt  ->  GDPI.bat     Hazır: Releases'tan GDPI.exe
@@ -38,8 +38,9 @@ if sys.stderr is None or sys.stdout is None:    # pencereli exe: konsol yok, ç�
 
 DEFAULTS = {
     "mode": "hepsi",            # "hepsi": dokunma listesi hariç hepsi | "liste": sadece hedef listesi
-    "fake": "checksum",         # "checksum" | "ttl" | "kapali"
-    "ttl": 4,
+    "fake": "ttl",              # "ttl" | "checksum" | "kapali"
+    "ttl": 3,
+    "cfg_version": 2,           # 1: varsayılan sahte paket "checksum" idi
     "reverse": False,
     "block_quic": True,
     "dns_redirect": False,
@@ -530,18 +531,28 @@ class Engine:
             payload = payload[:hpos] + b"\r\nhoSt:" + payload[hpos + 7:]
             cuts = [hpos + 4, start + ln // 2]
         else:
-            cuts = [2, start + ln // 2]          # kayıt başlığı + alan adının ortası
-        self.send_split(wd, p, addr, payload, cuts)
+            cuts = {"sni": [2, start + ln // 2], "orta": [start + ln // 2],
+                    "1": [1], "2": [2]}.get(self.cfg.get("split", "sni"), [2, start + ln // 2])
+        self.send_split(wd, p, addr, payload, cuts, (start, ln))
         return True
 
-    def send_split(self, wd, p, addr, data, cuts):
+    @staticmethod
+    def decoy(data, sni):
+        """Sahte paket: gerçek isteğin kopyası, ama site adı zararsız bir adla değiştirilmiş.
+        DPI bunu geçerli bir TLS/HTTP isteği olarak okuyup bağlantıyı "zararsız site" diye işaretler."""
+        start, ln = sni
+        name = (b"a" * max(ln - 4, 1) + b".com")[:ln] if ln >= 5 else b"x" * ln
+        return data[:start] + name + data[start + ln:]
+
+    def send_split(self, wd, p, addr, data, cuts, sni):
         cuts = sorted(c for c in set(cuts) if 0 < c < len(data))
         b = [0] + cuts + [len(data)]
         parts = [(b[k], data[b[k]:b[k + 1]]) for k in range(len(b) - 1)]
         fake = self.cfg["fake"]
         if fake != "kapali":
-            junk = bytes(random.getrandbits(8) for _ in range(len(parts[0][1])))
-            f = p.segment(junk, p.seq, ttl=int(self.cfg["ttl"]) if fake == "ttl" else None)
+            body = self.decoy(data, sni)
+            seq = p.seq - 10000 if self.cfg.get("fake_seq") else p.seq     # yanlış sıra no: sunucu atar
+            f = p.segment(body, seq, ttl=int(self.cfg["ttl"]) if fake == "ttl" else None)
             wd.checksums(f, addr)
             if fake == "checksum":
                 c = p.l4 + 16                    # TCP checksum alanı: bozuk -> sunucu kesin reddeder
@@ -580,9 +591,14 @@ def sanitize_cfg(raw):
 def load_cfg():
     try:
         with open(CONFIG, encoding="utf-8") as f:
-            return sanitize_cfg(json.load(f))
+            raw = json.load(f)
     except (OSError, ValueError):
         return sanitize_cfg({})
+    cfg = sanitize_cfg(raw)
+    if not isinstance(raw, dict) or raw.get("cfg_version", 1) < 2:
+        if cfg["fake"] == "checksum":            # eski varsayılan Türk operatörlerinde çalışmıyordu
+            cfg["fake"], cfg["ttl"] = "ttl", 3
+    return cfg
 
 
 def save_cfg(cfg):
@@ -665,9 +681,9 @@ def set_autostart(on: bool):
 
 
 PRESETS = {
-    "Hafif":   {"mode": "liste", "fake": "kapali",   "reverse": False, "block_quic": True},
-    "Dengeli": {"mode": "hepsi", "fake": "checksum", "reverse": False, "block_quic": True},
-    "Agresif": {"mode": "hepsi", "fake": "ttl",      "reverse": True,  "block_quic": True},
+    "Hafif":   {"mode": "liste", "fake": "ttl", "reverse": False, "block_quic": True},
+    "Dengeli": {"mode": "hepsi", "fake": "ttl", "reverse": False, "block_quic": True},
+    "Agresif": {"mode": "hepsi", "fake": "ttl", "reverse": True,  "block_quic": True},
 }
 
 
@@ -1024,9 +1040,9 @@ class App(ctk.CTk):
         rows = [
             ("Çalışma modu", "En sorunsuzu “Sadece liste”. “Her site” dokunma listesindekiler dışında her yere uygular",
              seg(self.v_mode, ["Her site", "Sadece liste"])),
-            ("Sahte paket", "Bozuk checksum en güvenlisi, yakındaki sunuculara zarar vermez",
-             seg(self.v_fake, ["Bozuk checksum", "Düşük TTL", "Kapalı"])),
-            ("TTL değeri", "Sadece Düşük TTL seçiliyken işe yarar. Çoğu zaman 3 ile 6 arası iyi",
+            ("Sahte paket", "Düşük TTL çoğu operatörde işe yarıyor. Bozuk checksum bazılarında hiç çalışmıyor",
+             seg(self.v_fake, ["Düşük TTL", "Bozuk checksum", "Kapalı"])),
+            ("TTL değeri", "Sadece Düşük TTL seçiliyken işe yarar. Çoğu zaman 3 yeterli, olmazsa 4-6 dene",
              lambda c: ctk.CTkOptionMenu(c, values=[str(i) for i in range(1, 13)], variable=self.v_ttl,
                                          width=80, fg_color=C["card2"], button_color=C["line"])),
             ("Parçaları ters gönder", "Bazı operatörlerde fark yaratıyor, açılmayan site varsa dene", sw(self.v_rev)),
