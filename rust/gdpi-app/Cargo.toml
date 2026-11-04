@@ -3,6 +3,7 @@ name = "gdpi-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+build = "build.rs"
 
 [[bin]]
 name = "gdpi"
@@ -10,3 +11,20 @@ path = "src/main.rs"
 
 [dependencies]
 gdpi-core = { path = "../gdpi-core" }
+eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+tray-icon = { version = "0.20", default-features = false }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gdpi-linux = { path = "../gdpi-linux" }
+gtk = "0.18"
+
+[target.'cfg(windows)'.dependencies]
+gdpi-windows = { path = "../gdpi-windows" }
+winreg = "0.55"
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
+[build-dependencies]
+embed-resource = "3"
