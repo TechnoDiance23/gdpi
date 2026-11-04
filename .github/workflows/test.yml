@@ -75,3 +75,24 @@ jobs:
         with:
           name: GDPI-android
           path: android/app/build/outputs/apk/release/app-release.apk
+      # README'deki ekran görüntüleri: gerçek APK emülatörde açılıp çekiliyor
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Emülatörde ekran görüntüleri
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          working-directory: android
+          script: sh shots.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-ekran
+          path: android/build/shots/*.png

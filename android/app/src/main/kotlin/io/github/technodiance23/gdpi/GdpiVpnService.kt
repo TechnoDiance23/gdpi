@@ -83,7 +83,7 @@ class GdpiVpnService : VpnService() {
         val fd = b.establish() ?: throw IllegalStateException("VPN izni yok.")
         tun = fd
 
-        val conf = File(filesDir, "tunnel.yml")
+        val conf = File(noBackupFilesDir, "tunnel.yml")
         conf.writeText(
             """
             tunnel:
@@ -94,6 +94,8 @@ class GdpiVpnService : VpnService() {
               port: ${s.port}
               address: 127.0.0.1
               udp: 'udp'
+              username: '${s.user}'
+              password: '${s.pass}'
             misc:
               task-stack-size: 81920
               log-level: warn

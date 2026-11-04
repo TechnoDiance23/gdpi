@@ -14,6 +14,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
@@ -32,6 +34,10 @@ class Socks(
         val onlyTargets: Boolean, val ttlMode: Boolean, val ttl: Int, val blockQuic: Boolean,
         val dnsRedirect: Boolean, val targets: List<String>, val bypass: List<String>,
     )
+
+    /** Her açılışta rastgele kimlik: telefondaki başka uygulamalar bu yerel vekili kullanamasın. */
+    val user: String = randomHex()
+    val pass: String = randomHex()
 
     val nSplit = AtomicInteger()
     val nSkip = AtomicInteger()
@@ -58,11 +64,18 @@ class Socks(
             c.tcpNoDelay = true
             val inp = DataInputStream(c.getInputStream())
             val out = c.getOutputStream()
-            // selamlaşma: kimlik doğrulama yok
+            // selamlaşma: yalnızca kullanıcı adı/parola (RFC 1929)
             if (inp.readUnsignedByte() != 5) return c.close()
-            val n = inp.readUnsignedByte()
-            inp.readFully(ByteArray(n))
-            out.write(byteArrayOf(5, 0))
+            val methods = ByteArray(inp.readUnsignedByte()).also { inp.readFully(it) }
+            if (2.toByte() !in methods) { out.write(byteArrayOf(5, 0xFF.toByte())); return c.close() }
+            out.write(byteArrayOf(5, 2))
+            if (inp.readUnsignedByte() != 1) return c.close()
+            val u = String(ByteArray(inp.readUnsignedByte()).also { inp.readFully(it) })
+            val pw = String(ByteArray(inp.readUnsignedByte()).also { inp.readFully(it) })
+            val ok = MessageDigest.isEqual(u.toByteArray(), user.toByteArray()) and
+                MessageDigest.isEqual(pw.toByteArray(), pass.toByteArray())
+            out.write(byteArrayOf(1, if (ok) 0 else 1))
+            if (!ok) return c.close()
             // istek
             val hdr = ByteArray(4)
             inp.readFully(hdr)
@@ -176,7 +189,9 @@ class Socks(
                 while (true) {
                     val p = DatagramPacket(d, d.size)
                     local.receive(p)
-                    client.set(InetSocketAddress(p.address, p.port))
+                    // ilk paketi gönderen istemciye kilitlen, başkasından geleni at
+                    val src = InetSocketAddress(p.address, p.port)
+                    if (!client.compareAndSet(null, src) && client.get() != src) continue
                     val len = p.length
                     if (len < 10 || d[2].toInt() != 0) continue          // parçalı paket desteklenmez
                     var i: Int
@@ -229,4 +244,6 @@ class Socks(
         try { while (inp.read() >= 0) { } } catch (_: Exception) {}
         local.close(); remote.close(); c.close()
     }
+
+    private fun randomHex() = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
 }
