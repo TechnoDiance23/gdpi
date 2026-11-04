@@ -2,90 +2,91 @@
   <img src="docs/acik.png" width="720" alt="GDPI ana ekran">
 </p>
 
-<h1 align="center">GDPI — Görüşürüz Derin Paket İnceleme 👋</h1>
+<h1 align="center">GDPI: Görüşürüz Derin Paket İnceleme</h1>
 
 <p align="center">
-  Windows için tek tıkla çalışan, arayüzlü ve <b>siteye göre akıllı</b> bir DPI aşma aracı.<br>
-  GoodbyeDPI'ın mantığı, ama bankanı, e-Devlet'ini ve Grok'unu bozmadan.
-</p>
-
-<p align="center">
-  <a href="../../releases/latest"><b>⬇️ GDPI'ı indir</b></a> · Windows (GDPI-windows.zip) · Linux (GDPI-linux.tar.gz)
+  GoodbyeDPI'ın yaptığı işi yapan, ama bankanı, e-Devlet'ini ve Grok'unu bozmayan küçük bir araç.<br>
+  <a href="../../releases/latest"><b>Son sürümü indir</b></a> (Windows ve Linux)
 </p>
 
 ---
 
 ## Neden yaptım?
 
-GoodbyeDPI işini görüyor ama her siteye müdahale ettiği için bazı şeyler bozuluyordu:
-İşbankası takılıyor, Resmî Gazete açılmıyor, Grok uygulaması sorun çıkarıyordu.
-GDPI aynı fikri biraz daha nazik uyguluyor:
+Uzun süre GoodbyeDPI kullandım. İşini görüyordu ama her siteye karıştığı için başka şeyleri bozuyordu.
+İşbankası takılıyordu, Resmî Gazete açılmıyordu, bilgisayardaki Grok uygulaması saçmalıyordu. Ben de aynı fikri
+biraz daha kibar uygulayan bir şey yazdım.
 
-- 🛡️ **"Asla dokunma" listesi:** bankalar, `gov.tr` siteleri, X ve Grok'a hiç elini sürmez.
-- 🎯 **İstersen sadece engelli sitelere** (Discord vb.) uygular, gerisi tamamen normal kalır.
-- 🧩 **Daha güvenli sahte paket:** Sahte paketleri varsayılan olarak *bozuk checksum* ile yollar. Yakındaki
-  Türk sunucuları bu paketi asla kabul etmez, bağlantı bozulmaz. Düşük TTL de seçilebilir.
-- ✂️ **Alan adının tam ortasından bölme:** TLS'te SNI'yi, HTTP'de `Host` başlığını bulup tam ortasından ikiye ayırır.
-- 🚫 **QUIC engeli** ve isteğe bağlı **DNS yönlendirme** (operatörün DNS zorlamasına karşı).
-- 🔎 **Site testi:** Bir site açılıyor mu, açılmıyorsa neden (DNS mi, DPI mı) tek tıkla görürsün.
-- 🔔 **Bildirim alanında yaşar:** Kapatınca sağ alttaki simgeye iner, Windows açılırken sessizce başlayabilir.
+GDPI'ın farkı, hangi siteye dokunacağını bilmesi. Bankalar, `gov.tr` siteleri, X ve Grok bir "asla dokunma"
+listesinde duruyor ve bunların trafiğine hiç karışmıyor. İstersen ayarı tamamen tersine çevirip sadece engelli
+sitelere (Discord gibi) uygulatabilirsin, geri kalan her şey hiç GDPI yokmuş gibi çalışır.
+
+Birkaç küçük şey daha var:
+
+- Sahte paketleri bozuk checksum ile gönderiyor. GoodbyeDPI'daki düşük TTL yöntemi bazen yakındaki Türk
+  sunucularına ulaşıp bağlantıyı bozuyordu, bu yöntemde sunucu sahte paketi hiçbir zaman kabul etmiyor.
+  İstersen TTL yöntemine de geçebilirsin.
+- Paketi rastgele bir yerden değil, alan adının tam ortasından bölüyor.
+- İçinde bir site testi var. Bir site açılmıyorsa sebebinin DNS mi yoksa engel mi olduğunu orada görebilirsin.
+- Kapatınca sağ alttaki simgeye iniyor, istersen Windows açılırken kendiliğinden başlıyor.
 
 ## Kurulum
 
-### 1) En kolayı: hazır exe
-1. [Releases](../../releases/latest) sayfasından **GDPI-windows.zip**'i indir ve bir klasöre çıkar.
-2. İçindeki **GDPI.exe**'ye çift tıkla, yönetici iznine "Evet" de. (Ağ paketlerini işleyebilmek için gerekiyor.)
-3. Ortadaki büyük düğmeye bas. Yeşil olduysa tamamdır. ✅
+### Windows
 
-> Windows SmartScreen "tanınmayan uygulama" diyebilir, çünkü exe imzasız.
-> **Ek bilgi → Yine de çalıştır** ile açabilirsin. Kaynak kodun tamamı burada, istersen kendin derle (aşağıda).
+[Releases](../../releases/latest) sayfasından **GDPI-windows.zip**'i indir, bir klasöre çıkar ve içindeki
+**GDPI.exe**'yi aç. Yönetici izni isteyecek. Ağ paketlerine erişmek için buna ihtiyacı var, "Evet" de.
+Sonra ortadaki düğmeye bas, yeşile dönerse çalışıyor demektir.
 
-### 2) winget ile
+Exe imzasız olduğu için Windows SmartScreen "tanınmayan uygulama" diyebilir. **Ek bilgi → Yine de çalıştır**
+ile açabilirsin. İçine ne girdiğinden emin olmak istersen kodun tamamı burada, kendin de derleyebilirsin.
+
+winget'e de eklemeyi düşünüyorum ama henüz başvurmadım. Şimdilik zip'ten kurman gerekiyor.
+
+### Linux
+
+Önce gerekenleri bir kere kur:
+
 ```
-winget install TechnoDiance23.GDPI
+sudo apt install python3-venv python3-tk nftables      # Fedora: sudo dnf install python3-tkinter nftables
 ```
-*(winget kataloğuna başvuru aşamasında. Onaylanana kadar bu komut çalışmayabilir, o zamana kadar 1. yolu kullan.)*
 
-### 3) Kaynaktan çalıştır
+Sonra [Releases](../../releases/latest) sayfasından **GDPI-linux.tar.gz**'i indir:
+
+```
+tar -xzf GDPI-linux.tar.gz
+cd GDPI
+./gdpi.sh
+```
+
+`gdpi.sh` ilk açılışta kendine bir Python ortamı kuruyor, sonra GDPI'ı yönetici izniyle açıyor. Arayüz
+Windows'takiyle aynı, ayarlar `~/.config/GDPI/` altında duruyor. Linux'ta WinDivert yerine çekirdeğin kendi
+NFQUEUE özelliği kullanılıyor, ayrıca sürücü kurman gerekmiyor. GDPI kapanınca kuralları siliyor. Bir şekilde
+çökerse bile internetin kesilmiyor, kalan kuralı `sudo nft delete table inet gdpi` ile temizleyebilirsin.
+
+Linux'ta "Windows ile başlat" ayarı yok. GNOME'da tepsi simgesi için AppIndicator eklentisi gerekebilir, o
+yoksa pencereyi kapatınca GDPI da kapanıyor.
+
+### Kaynaktan
+
 ```
 git clone https://github.com/TechnoDiance23/gdpi.git
 cd gdpi
-GDPI.bat
+GDPI.bat        # Linux'ta: ./gdpi.sh
 ```
-`GDPI.bat` eksik Python paketlerini kendisi kurar. Python 3.10+ gerekir.
 
-Kendi exe'ni derlemek istersen: `powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\GDPI\GDPI.exe`
+`GDPI.bat` eksik Python paketlerini kendisi kuruyor (Python 3.10 ya da üstü lazım). Kendi exe'ni derlemek
+istersen `powershell -ExecutionPolicy Bypass -File build.ps1` yeterli, sonuç `dist\GDPI\GDPI.exe` oluyor.
 
-### 4) Linux
-1. Gerekenleri kur (bir kere):
-   ```
-   sudo apt install python3-venv python3-tk nftables      # Fedora: sudo dnf install python3-tkinter nftables
-   ```
-2. [Releases](../../releases/latest) sayfasından **GDPI-linux.tar.gz**'i indir, aç ve çalıştır:
-   ```
-   tar -xzf GDPI-linux.tar.gz
-   cd GDPI
-   ./gdpi.sh
-   ```
+## Nasıl kullanılır?
 
-Kaynaktan da olur: `git clone https://github.com/TechnoDiance23/gdpi.git && cd gdpi && ./gdpi.sh`
+Ana ekrandaki düğme GDPI'ı açıp kapatıyor. Altında ne kadar süredir açık olduğunu ve kaç bağlantıya karıştığını
+görüyorsun. Hafif, Dengeli ve Agresif diye üç hazır profil var. Bir şey çalışmazsa önce bunları dene.
 
-`gdpi.sh` ilk açılışta `.venv` kurar, sonra GDPI'ı yönetici (pkexec/sudo) izniyle açar. Arayüz ve ayarlar
-Windows'takiyle aynıdır; ayarlar `~/.config/GDPI/` altında durur. Linux'ta WinDivert yerine çekirdeğin NFQUEUE
-özelliği ve nftables kullanılır (ek bir sürücü ya da kütüphane gerekmez). GDPI kapanınca kurallar silinir; çökerse
-bile kural `bypass` modunda olduğundan internet kesilmez (kalıntıyı silmek için: `sudo nft delete table inet gdpi`).
-Windows ile başlatma seçeneği Linux'ta yoktur. Tepsi simgesi masaüstüne göre (GNOME'da AppIndicator eklentisi
-gerekebilir) çalışmayabilir; o durumda pencereyi kapatmak GDPI'ı kapatır.
-
-## Kullanım
-
-| Ekran | Ne işe yarar |
-|---|---|
-| **Bağlantı** | Büyük düğme ile aç/kapat. Süre, aşılan ve dokunulmayan bağlantı sayısı. Hızlı profiller: Hafif / Dengeli / Agresif |
-| **Siteler** | Solda engelli siteler, sağda asla dokunulmayacaklar. Her satıra bir alan adı yaz, alt alan adları da kapsanır |
-| **Site Testi** | Bir siteyi ya da listendekilerin hepsini test et |
-| **Ayarlar** | Mod, sahte paket türü, TTL, QUIC, DNS, Windows ile başlat. "Kaydet ve uygula" ile anında geçerli olur |
-| **Kayıt** | Hangi sitelere müdahale edildiğini gösterir. Kopyala/Temizle |
+**Siteler** sayfasında iki liste var: solda engelli siteler, sağda asla dokunulmayacaklar. Her satıra bir alan
+adı yazman yeterli, alt alan adları da otomatik kapsanıyor. **Site Testi**'nde tek bir siteyi ya da listedekilerin
+hepsini deneyebilirsin. **Ayarlar**'dan modu, sahte paket türünü, QUIC ve DNS ayarlarını değiştirebilirsin.
+"Kaydet ve uygula" deyince GDPI'ı kapatıp açmana gerek kalmadan hemen geçerli oluyor.
 
 <p align="center">
   <img src="docs/siteler.png" width="49%"> <img src="docs/test.png" width="49%">
@@ -95,37 +96,50 @@ gerekebilir) çalışmayabilir; o durumda pencereyi kapatmak GDPI'ı kapatır.
 </p>
 
 ### Bir site açılmıyorsa
-1. **Site Testi**'nde dene. "DNS engelli" diyorsa Ayarlar'dan **DNS yönlendir**'i aç.
-2. Hızlı profili **Agresif** yap ya da sahte paketi **Düşük TTL** (3–6) olarak dene.
-3. Bir site GDPI açıkken bozuluyorsa, adını **Asla dokunma** listesine ekle.
 
-### Bilmen gerekenler
-- **GoodbyeDPI'ı tamamen kapat** (servisi varsa `service_remove.cmd`). İkisi aynı anda çalışırsa birbirini bozar,
-  bankalar ve devlet siteleri açılmaz.
-- Windows Defender, WinDivert'i (GoodbyeDPI'daki gibi) "istenmeyebilecek uygulama" diye işaretleyebilir. Sürücü
-  WinDivert'in resmi, imzalı sürücüsüdür. Engellenirse Defender'da GDPI klasörüne izin vermen gerekir.
-- Sorun olursa `%APPDATA%\GDPI\cikti.log` ve `GDPI.exe --selftest` (sonuç: `selftest.txt`) yardımcı olur.
-- Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında durur. GDPI bu dosyayı açarken her değeri kontrol eder,
-  geçersiz bir değer (bilinmeyen DNS sunucusu, bozuk alan adı vb.) görürse güvenli varsayılana döner.
-- **Windows ile başlat** açılınca GDPI kendi klasörünü `C:\Program Files\GDPI\` içine kopyalar ve oradan başlar.
-  Bu klasöre sadece yöneticiler yazabilir, böylece başka bir program GDPI'ın yerine geçip yönetici yetkisi alamaz.
-- GDPI bir VPN değildir. IP adresini gizlemez, sadece operatörün paket incelemesini atlatır.
-- Hiçbir veri toplamaz, hiçbir yere bağlanmaz. Sadece senin bilgisayarındaki paketleri yeniden düzenler.
+Önce Site Testi'nde dene. "DNS engellenmiş" diyorsa Ayarlar'dan DNS yönlendirmeyi aç. Değilse profili Agresif'e
+al ya da sahte paketi Düşük TTL'ye çevirip 3 ile 6 arasında değerler dene. Tersi olursa, yani bir site GDPI
+açıkken bozuluyorsa, adını "asla dokunma" listesine ekle.
 
-## Nasıl çalışıyor? (meraklısına)
+### Bilmende fayda var
 
-Operatörler, şifreli bağlantının ilk paketindeki açık metin alan adına (SNI) bakarak engelleme yapar. GDPI,
-[WinDivert](https://reqrypt.org/windivert.html) (Linux'ta NFQUEUE) ile giden paketi yakalar, alan adının tam ortasından iki TCP
-parçasına böler ve önüne operatörün göreceği, ama sunucunun asla kabul etmeyeceği bir sahte paket koyar.
-Operatörün DPI'ı alan adını bütün halinde göremez, sunucu ise parçaları normal şekilde birleştirir.
+GoodbyeDPI'ı tamamen kapat. Servis olarak kurduysan `service_remove.cmd` ile kaldır. İkisi aynı anda çalışınca
+birbirini bozuyor ve bankalar açılmıyor.
+
+Windows Defender, GoodbyeDPI'da da olduğu gibi WinDivert'i "istenmeyebilecek uygulama" diye işaretleyebilir.
+İçindeki sürücü WinDivert'in resmi ve imzalı sürücüsü. Defender engellerse GDPI klasörüne izin vermen gerekiyor.
+
+Bir sorun çıkarsa `%APPDATA%\GDPI\cikti.log` dosyasına bak. `GDPI.exe --selftest` komutu da GDPI'ı açıp birkaç
+siteyi deniyor ve sonucu `selftest.txt` dosyasına yazıyor.
+
+Ayarların `%APPDATA%\GDPI\ayarlar.json` dosyasında. GDPI bu dosyayı açarken her değeri kontrol ediyor, saçma bir
+şey görürse (tanımadığı bir DNS sunucusu, bozuk bir alan adı) varsayılan değere dönüyor.
+
+"Windows ile başlat" açıkken GDPI kendini `C:\Program Files\GDPI\` klasörüne kopyalayıp oradan çalışıyor. Oraya
+sadece yöneticiler yazabildiği için başka bir program GDPI'ın yerine geçip yönetici yetkisi kapamıyor.
+
+GDPI bir VPN değil, IP adresini gizlemiyor. Hiçbir veri toplamıyor ve hiçbir yere bağlanmıyor, sadece senin
+bilgisayarından çıkan paketleri yeniden düzenliyor.
+
+## Nasıl çalışıyor?
+
+Operatörler engellemeyi genelde şifreli bağlantının ilk paketine bakarak yapıyor. O pakette gitmek istediğin
+sitenin adı (SNI) açık olarak yazıyor. GDPI bu paketi yakalıyor, alan adının tam ortasından ikiye bölüyor ve önüne
+operatörün göreceği ama sunucunun asla kabul etmeyeceği bir sahte paket koyuyor. Operatör site adını bütün halinde
+göremiyor, sunucu ise parçaları normal şekilde birleştiriyor. Windows'ta paketleri yakalamak için
+[WinDivert](https://reqrypt.org/windivert.html), Linux'ta NFQUEUE kullanılıyor.
 
 ## Teşekkürler ve lisans
 
-- Fikir: [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS) ve [zapret](https://github.com/bol-van/zapret). GDPI onların kodunu içermez, aynı yaklaşımı Python ile sıfırdan uygular.
-- Paket yakalama: [WinDivert 2.2.2](https://reqrypt.org/windivert.html) (LGPLv3 / GPLv2 çift lisans; GDPI dağıtımında LGPLv3), GoodbyeDPI ile aynı sürücü sürümü.
-- Arayüz: [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT), [pystray](https://github.com/moses-palmer/pystray) (LGPLv3), [Pillow](https://github.com/python-pillow/Pillow) (MIT-CMU).
+Fikir [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS) ve [zapret](https://github.com/bol-van/zapret)'ten
+geliyor. GDPI onların kodunu içermiyor, aynı yaklaşımı Python ile sıfırdan uyguluyor. Paketleri yakalamak için
+GoodbyeDPI ile aynı sürüm olan [WinDivert 2.2.2](https://reqrypt.org/windivert.html) kullanılıyor (LGPLv3 / GPLv2
+çift lisanslı, GDPI'da LGPLv3). Arayüz [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT),
+[pystray](https://github.com/moses-palmer/pystray) (LGPLv3) ve [Pillow](https://github.com/python-pillow/Pillow)
+(MIT-CMU) ile yapıldı.
 
-GDPI'ın kendi kodu **MIT** lisanslıdır, bkz. [LICENSE](LICENSE). Üçüncü parti lisanslar için [THIRD_PARTY.md](THIRD_PARTY.md); tam metinler [licenses/](licenses/) klasöründe ve
-Release zip'indeki `licenses\` klasöründedir. LGPL bileşenlerinin kaynak kodu her Release'e eklenir.
+GDPI'ın kendi kodu **MIT** lisanslı, bkz. [LICENSE](LICENSE). Diğer bileşenlerin lisansları
+[THIRD_PARTY.md](THIRD_PARTY.md) dosyasında, tam metinleri [licenses/](licenses/) klasöründe ve indirdiğin zip'in
+içinde. LGPL bileşenlerinin kaynak kodu da her sürüme ayrıca ekleniyor.
 
-Görüşürüz, derin paket inceleme. 👋
+Görüşürüz, derin paket inceleme.

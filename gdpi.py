@@ -679,24 +679,24 @@ def site_check(host, timeout=6):
     try:
         ip = socket.gethostbyname(host)
     except OSError:
-        return False, "DNS çözülemedi"
+        return False, "Adres bulunamadı (DNS)"
     if ip.startswith(("195.175.254.", "193.192.98.")) or ip in ("127.0.0.1", "0.0.0.0"):
-        return False, f"DNS engelli ({ip}) — DNS yönlendirmeyi aç"
+        return False, f"DNS engellenmiş ({ip}). Ayarlar'dan DNS yönlendirmeyi aç."
     try:
         with socket.create_connection((ip, 443), timeout=timeout) as s:
             with ssl.create_default_context().wrap_socket(s, server_hostname=host):
                 pass
     except ssl.SSLCertVerificationError:
-        return False, "Sertifika uyuşmuyor (yönlendirilmiş olabilir)"
+        return False, "Sertifika tutmuyor, başka yere yönlendiriliyor olabilir"
     except ConnectionResetError:
-        return False, "Bağlantı kesildi (DPI engeli)"
+        return False, "Bağlantı kesildi, muhtemelen engelli"
     except ssl.SSLError:
-        return False, "TLS reddedildi (DPI ya da sitenin bot koruması)"
+        return False, "Site bağlantıyı kabul etmedi (engel ya da sitenin kendi koruması)"
     except socket.timeout:
-        return False, "Zaman aşımı"
+        return False, "Cevap gelmedi"
     except OSError as e:
         return False, f"Hata: {(e.strerror or str(e))[:50]}"
-    return True, f"Açık · {int((time.time() - t0) * 1000)} ms"
+    return True, f"Açılıyor ({int((time.time() - t0) * 1000)} ms)"
 
 
 # ----------------------------------------------------------------- arayüz
@@ -850,7 +850,7 @@ class App(ctk.CTk):
         b.grid_propagate(False)
         self.sb_dot = ctk.CTkLabel(b, text="●", text_color=C["red"], font=(FONT, 13))
         self.sb_dot.pack(side="left", padx=(16, 4))
-        self.sb_text = ctk.CTkLabel(b, text="Motor kapalı", text_color=C["mute"], font=(FONT, 12))
+        self.sb_text = ctk.CTkLabel(b, text="Kapalı", text_color=C["mute"], font=(FONT, 12))
         self.sb_text.pack(side="left")
         self.sb_right = ctk.CTkLabel(b, text="", text_color=C["mute"], font=(FONT, 12))
         self.sb_right.pack(side="right", padx=16)
@@ -877,15 +877,15 @@ class App(ctk.CTk):
         p.grid_columnconfigure(0, weight=1)
         self.power = PowerButton(p, self.toggle)
         self.power.grid(row=0, column=0, pady=(34, 6))
-        self.h_title = ctk.CTkLabel(p, text="Bağlı değil", font=(FONT, 24, "bold"), text_color=C["text"])
+        self.h_title = ctk.CTkLabel(p, text="Şu an kapalı", font=(FONT, 24, "bold"), text_color=C["text"])
         self.h_title.grid(row=1, column=0)
-        self.h_sub = ctk.CTkLabel(p, text="Başlatmak için düğmeye bas", font=(FONT, 13), text_color=C["mute"])
+        self.h_sub = ctk.CTkLabel(p, text="Açmak için ortadaki düğmeye bas", font=(FONT, 13), text_color=C["mute"])
         self.h_sub.grid(row=2, column=0, pady=(2, 22))
 
         stats = ctk.CTkFrame(p, fg_color="transparent")
         stats.grid(row=3, column=0, padx=30, sticky="ew")
         self.stat = {}
-        for i, (key, label) in enumerate([("time", "Süre"), ("split", "Aşılan bağlantı"),
+        for i, (key, label) in enumerate([("time", "Süre"), ("split", "Aşılan"),
                                           ("skip", "Dokunulmayan"), ("mode", "Mod")]):
             stats.grid_columnconfigure(i, weight=1, uniform="s")
             c = self.card(stats)
@@ -908,7 +908,7 @@ class App(ctk.CTk):
         self.v_fake.set({"checksum": "Bozuk checksum", "ttl": "Düşük TTL", "kapali": "Kapalı"}[p["fake"]])
         self.v_rev.set(p["reverse"])
         self.v_quic.set(p["block_quic"])
-        self.log(f"Profil: {name}")
+        self.log(f"{name} profiline geçildi.")
         self.apply()
 
     def apply(self):
@@ -1110,13 +1110,13 @@ class App(ctk.CTk):
     def update_ui_state(self):
         on = bool(self.engine)
         self.power.set(on)
-        self.h_title.configure(text="Korunuyorsun" if on else "Bağlı değil",
+        self.h_title.configure(text="Açık" if on else "Şu an kapalı",
                                text_color=C["green"] if on else C["text"])
-        self.h_sub.configure(text="DPI atlatılıyor — banka ve devlet siteleri ellenmiyor" if on
-                             else "Başlatmak için düğmeye bas")
+        self.h_sub.configure(text="Engeller aşılıyor. Bankalara ve devlet sitelerine dokunulmuyor." if on
+                             else "Açmak için ortadaki düğmeye bas")
         self.sb_dot.configure(text_color=C["green"] if on else C["red"])
-        self.sb_text.configure(text="Motor çalışıyor" if on else "Motor kapalı")
-        self.notify("Korunuyorsun — DPI atlatılıyor" if on else "GDPI durduruldu")
+        self.sb_text.configure(text="Çalışıyor" if on else "Kapalı")
+        self.notify("GDPI açıldı" if on else "GDPI kapatıldı")
         if self.tray:
             self.tray.icon = shield_image(on)
             self.tray.title = "GDPI - Açık" if on else "GDPI - Kapalı"
@@ -1177,7 +1177,7 @@ class App(ctk.CTk):
             self.engine.stop()
             self.engine = None
             self.started_at = None
-            self.log("Durduruldu.")
+            self.log("GDPI kapatıldı.")
             self.update_ui_state()
             return
         self.read_ui()
@@ -1187,14 +1187,14 @@ class App(ctk.CTk):
         except Exception as e:
             self.engine = None
             msg = e.strerror if isinstance(e, OSError) and e.strerror else str(e)
-            self.log(f"Başlatılamadı: {msg}")
+            self.log(f"Açılamadı: {msg}")
             self.show_page("home")                  # hatayı Kayıt'ta saklama, ana ekranda göster
-            self.h_title.configure(text="Başlatılamadı", text_color=C["red"])
+            self.h_title.configure(text="Açılamadı", text_color=C["red"])
             self.h_sub.configure(text=msg, text_color=C["red"])
             return
         self.h_sub.configure(text_color=C["mute"])
         self.started_at = time.time()
-        self.log(f"Başladı ({self.cfg['mode']}, sahte: {self.cfg['fake']}).")
+        self.log("GDPI açıldı.")
         self.update_ui_state()
 
     def quit_app(self):

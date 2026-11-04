@@ -59,17 +59,18 @@ jobs:
             dist/GDPI-third-party-sources.zip
             dist/GDPI-third-party-sources.zip.sha256
           body: |
-            **GDPI-windows.zip**'i indir, bir klasöre çıkar, içindeki **GDPI.exe**'ye çift tıkla,
-            yönetici iznine "Evet" de, büyük düğmeye bas. Bu kadar. 👋
+            Windows'ta **GDPI-windows.zip**'i indir, bir klasöre çıkar ve içindeki **GDPI.exe**'yi aç.
+            Yönetici iznine "Evet" de, ortadaki düğmeye bas, o kadar.
 
-            SmartScreen uyarı verirse: **Ek bilgi → Yine de çalıştır** (exe imzasız, kaynak kod depoda).
-            Doğrulamak istersen SHA256 değeri `GDPI-windows.zip.sha256` dosyasında.
+            Linux'ta **GDPI-linux.tar.gz**'i indir, açıp `./gdpi.sh` ile çalıştır. Önce gereken paketleri
+            kurman lazım, README'de yazıyor.
 
-            **Lisans:** GDPI'ın kendi kodu MIT lisanslıdır. Paket, kendi lisansları altındaki üçüncü parti
-            bileşenleri içerir (WinDivert: LGPLv3, pystray: LGPLv3 ve diğerleri). Tam lisans metinleri
-            zip içindeki `licenses/` klasöründe, ayrıntılar `THIRD_PARTY.md` dosyasındadır. LGPL bileşenlerinin
-            kaynak kodu `GDPI-third-party-sources.zip` içindedir; exe'yi değiştirilmiş sürümlerle yeniden
-            derlemek için depodaki `build.ps1` yeterlidir.
+            Exe imzasız olduğu için SmartScreen uyarı verebilir. "Ek bilgi" deyip "Yine de çalıştır"a basman
+            yeterli. Dosyanın değişmediğinden emin olmak istersen SHA256 değerleri `.sha256` dosyalarında.
+
+            GDPI'ın kendi kodu MIT lisanslı. İçinde kendi lisansı olan başka bileşenler de var (WinDivert ve
+            pystray LGPLv3, ayrıntılar `THIRD_PARTY.md` dosyasında). Lisans metinleri zip içindeki `licenses/`
+            klasöründe, LGPL bileşenlerinin kaynak kodu da `GDPI-third-party-sources.zip` içinde.
 
   # Linux: kaynak dosyalar + gdpi.sh tek bir tar.gz içinde (git archive, gdpi.sh çalıştırılabilir kalır)
   linux:
