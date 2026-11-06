@@ -168,9 +168,9 @@ struct WinBackend {
 fn flush_dns_cache() {
     // SAFETY: dnsapi.dll standart Windows sistem kütüphanesidir; DnsFlushResolverCache parametresiz bir API'dir.
     unsafe {
-        let dll = windows_sys::Win32::System::LibraryLoader::LoadLibraryA(b"dnsapi.dll\0".as_ptr());
+        let dll = windows_sys::Win32::System::LibraryLoader::LoadLibraryA(c"dnsapi.dll".as_ptr().cast());
         if !dll.is_null() {
-            let func = windows_sys::Win32::System::LibraryLoader::GetProcAddress(dll, b"DnsFlushResolverCache\0".as_ptr());
+            let func = windows_sys::Win32::System::LibraryLoader::GetProcAddress(dll, c"DnsFlushResolverCache".as_ptr().cast());
             if let Some(f) = func {
                 let f: unsafe extern "system" fn() -> i32 = std::mem::transmute(f);
                 f();
