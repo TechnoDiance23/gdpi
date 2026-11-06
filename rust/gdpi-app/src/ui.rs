@@ -99,6 +99,7 @@ pub struct App {
     tests: Vec<TestRow>,
     preset: Option<usize>,
     started: std::time::Instant,
+    cmd_rx: std::sync::mpsc::Receiver<Cmd>,
 }
 
 pub fn run(tray_start: bool) -> Result<(), String> {
@@ -142,28 +143,11 @@ impl App {
         let logo = ctx.load_texture("logo", img, egui::TextureOptions::LINEAR);
         let core = Arc::new(Mutex::new(Core::new()));
 
-        let c2 = core.clone();
+        let (cmd_tx, cmd_rx) = std::sync::mpsc::channel();
         let ctx2 = ctx.clone();
-        let handler = Box::new(move |cmd: Cmd| match cmd {
-            Cmd::Show => {
-                #[cfg(windows)]
-                win32_show();
-                ctx2.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx2.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                ctx2.send_viewport_cmd(egui::ViewportCommand::Focus);
-                ctx2.request_repaint();
-            }
-            Cmd::Toggle => {
-                if let Ok(mut c) = c2.lock() {
-                    c.toggle();
-                }
-            }
-            Cmd::Quit => {
-                if let Ok(mut c) = c2.lock() {
-                    c.shutdown();
-                }
-                std::process::exit(0);
-            }
+        let handler = Box::new(move |cmd: Cmd| {
+            let _ = cmd_tx.send(cmd);
+            ctx2.request_repaint();
         });
         {
             let mut c = core.lock().unwrap();
@@ -178,12 +162,33 @@ impl App {
                 c.toggle();
             }
         }
-        App { core, logo, test_entry: String::new(), tests: Vec::new(), preset: None, started: std::time::Instant::now() }
+        App { core, logo, test_entry: String::new(), tests: Vec::new(), preset: None, started: std::time::Instant::now(), cmd_rx }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        while let Ok(cmd) = self.cmd_rx.try_recv() {
+            match cmd {
+                Cmd::Show => {
+                    #[cfg(windows)]
+                    win32_show();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                }
+                Cmd::Toggle => {
+                    let mut c = self.core.lock().unwrap();
+                    c.toggle();
+                }
+                Cmd::Quit => {
+                    let mut c = self.core.lock().unwrap();
+                    c.shutdown();
+                    std::process::exit(0);
+                }
+            }
+        }
+
         let core = self.core.clone();
         let mut c = core.lock().unwrap();
 

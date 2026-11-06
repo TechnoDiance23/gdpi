@@ -165,6 +165,21 @@ struct WinBackend {
     thread: Option<JoinHandle<()>>,
 }
 
+fn flush_dns_cache() {
+    // SAFETY: dnsapi.dll standart Windows sistem kütüphanesidir; DnsFlushResolverCache parametresiz bir API'dir.
+    unsafe {
+        let dll = windows_sys::Win32::System::LibraryLoader::LoadLibraryA(b"dnsapi.dll\0".as_ptr());
+        if !dll.is_null() {
+            let func = windows_sys::Win32::System::LibraryLoader::GetProcAddress(dll, b"DnsFlushResolverCache\0".as_ptr());
+            if let Some(f) = func {
+                let f: unsafe extern "system" fn() -> i32 = std::mem::transmute(f);
+                f();
+            }
+            windows_sys::Win32::Foundation::FreeLibrary(dll);
+        }
+    }
+}
+
 impl Backend for WinBackend {
     fn stop(&mut self) {
         let Some(wd) = self.wd.take() else { return };
@@ -173,6 +188,7 @@ impl Backend for WinBackend {
             let _ = t.join();
         }
         wd.close();
+        flush_dns_cache();
     }
 }
 
@@ -183,6 +199,7 @@ impl Drop for WinBackend {
 }
 
 pub fn start(cfg: Config, stats: Arc<Stats>, log: LogFn) -> Result<Box<dyn Backend>, EngineError> {
+    flush_dns_cache();
     let wd = Arc::new(Wd::open(&filter_str(&cfg))?);
     let engine = Engine::new(cfg, stats, log.clone());
     let w = wd.clone();
